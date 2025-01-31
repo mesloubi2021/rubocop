@@ -14,8 +14,6 @@ module RuboCop
       #   # bad
       #   some_method a { |val| puts val }
       #
-      # @example
-      #
       #   # good
       #   # With parentheses, there's no ambiguity.
       #   some_method(a { |val| puts val })
@@ -79,7 +77,7 @@ module RuboCop
         private
 
         def ambiguous_block_association?(send_node)
-          send_node.last_argument.block_type? && !send_node.last_argument.send_node.arguments?
+          send_node.last_argument.any_block_type? && !send_node.last_argument.send_node.arguments?
         end
 
         def allowed_method_pattern?(node)

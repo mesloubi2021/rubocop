@@ -48,12 +48,14 @@ RSpec.describe Changelog do
   end
 
   let(:duplicate_entry) do
-    Changelog::Entry.new(type: :fix, body: 'Duplicate contributor name entry', user: 'johndoe')
+    described_class::Entry.new(
+      type: :fix, body: 'Duplicate contributor name entry', user: 'johndoe'
+    )
   end
 
   let(:entries) do
     %i[fix new fix].map.with_index do |type, i|
-      Changelog::Entry.new(
+      described_class::Entry.new(
         type: type, body: "Do something cool#{'x' * i}", user: "johndoe#{'x' * i}"
       )
     end << duplicate_entry
@@ -147,7 +149,7 @@ RSpec.describe Changelog do
       it 'generates correct file name' do
         body = 'Add new `Lint/UselessRescue` cop'
         entry = described_class.new(type: :new, body: body, user: github_user)
-        expect(entry.path).to eq('changelog/new_add_new_lint_useless_rescue_cop.md')
+        expect(entry.path).to match(%r{\Achangelog/new_add_new_lint_useless_rescue_cop_\d+.md\z})
       end
     end
   end

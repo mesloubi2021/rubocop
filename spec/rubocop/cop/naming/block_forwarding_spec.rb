@@ -148,6 +148,14 @@ RSpec.describe RuboCop::Cop::Naming::BlockForwarding, :config do
         RUBY
       end
 
+      it 'does not register an offense when method just returns the block argument' do
+        expect_no_offenses(<<~RUBY)
+          def foo(&block)
+            block
+          end
+        RUBY
+      end
+
       it 'does not register an offense when defining without block argument method' do
         expect_no_offenses(<<~RUBY)
           def foo(arg1, arg2)
@@ -183,6 +191,53 @@ RSpec.describe RuboCop::Cop::Naming::BlockForwarding, :config do
         RUBY
       end
 
+      # Ruby 3.3.0 had a bug where accessing an anonymous block argument inside of a block itself
+      # was a syntax error: https://bugs.ruby-lang.org/issues/20090
+      context 'when accessing the block inside of a block' do
+        it 'does not register an offense when using explicit block forwarding in block method' do
+          expect_no_offenses(<<~RUBY)
+            def foo(&block)
+              block_method do
+                bar(&block)
+              end
+            end
+          RUBY
+        end
+
+        it 'does not register an offense when using explicit block forwarding in numbered block method' do
+          expect_no_offenses(<<~RUBY)
+            def foo(&block)
+              block_method do
+                bar(&block)
+                baz(_1)
+              end
+            end
+          RUBY
+        end
+
+        it 'does not register an offense when using explicit block forwarding in block method and after' do
+          expect_no_offenses(<<~RUBY)
+            def foo(&block)
+              block_method do
+                bar(&block)
+              end
+              baz(&block)
+            end
+          RUBY
+        end
+
+        it 'does not register an offense when using explicit block forwarding in block method and before' do
+          expect_no_offenses(<<~RUBY)
+            def foo(&block)
+              bar(&block)
+              block_method do
+                baz(&block)
+              end
+            end
+          RUBY
+        end
+      end
+
       it 'does not register an offense when defining no arguments method' do
         expect_no_offenses(<<~RUBY)
           def foo
@@ -205,7 +260,97 @@ RSpec.describe RuboCop::Cop::Naming::BlockForwarding, :config do
       end
     end
 
-    context 'Ruby < 3.0', :ruby30 do
+    context 'Ruby >= 3.4', :ruby34 do
+      it 'registers an offense when using explicit block forwarding in block method' do
+        expect_offense(<<~RUBY)
+          def foo(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            block_method do
+              bar(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(&)
+            block_method do
+              bar(&)
+            end
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using explicit block forwarding in numbered block method' do
+        expect_offense(<<~RUBY)
+          def foo(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            block_method do
+              bar(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+              baz(_1)
+            end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(&)
+            block_method do
+              bar(&)
+              baz(_1)
+            end
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using explicit block forwarding in block method and after' do
+        expect_offense(<<~RUBY)
+          def foo(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            block_method do
+              bar(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            end
+            baz(&block)
+                ^^^^^^ Use anonymous block forwarding.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(&)
+            block_method do
+              bar(&)
+            end
+            baz(&)
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using explicit block forwarding in block method and before' do
+        expect_offense(<<~RUBY)
+          def foo(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            bar(&block)
+                ^^^^^^ Use anonymous block forwarding.
+            block_method do
+              baz(&block)
+                  ^^^^^^ Use anonymous block forwarding.
+            end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(&)
+            bar(&)
+            block_method do
+              baz(&)
+            end
+          end
+        RUBY
+      end
+    end
+
+    context 'Ruby < 3.0', :ruby30, unsupported_on: :prism do
       it 'does not register an offense when not using anonymous block forwarding' do
         expect_no_offenses(<<~RUBY)
           def foo(&block)

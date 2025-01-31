@@ -19,7 +19,7 @@ module RuboCop
       # acceptable value other than none, it will suppress the offenses
       # raised by this cop. It enforces frozen state.
       #
-      # NOTE: Regexp and Range literals are frozen objects since Ruby 3.0.
+      # NOTE: `Regexp` and `Range` literals are frozen objects since Ruby 3.0.
       #
       # NOTE: From Ruby 3.0, interpolated strings are not frozen when
       # `# frozen-string-literal: true` is used, so this cop enforces explicit
@@ -125,15 +125,14 @@ module RuboCop
         MSG = 'Freeze mutable objects assigned to constants.'
 
         def on_casgn(node)
-          _scope, _const_name, value = *node
-          if value.nil? # This is only the case for `CONST += ...` or similarg66
+          if node.expression.nil? # This is only the case for `CONST += ...` or similarg66
             parent = node.parent
             return unless parent.or_asgn_type? # We only care about `CONST ||= ...`
 
-            value = parent.children.last
+            on_assignment(parent.children.last)
+          else
+            on_assignment(node.expression)
           end
-
-          on_assignment(value)
         end
 
         private
@@ -198,7 +197,7 @@ module RuboCop
         end
 
         def frozen_regexp_or_range_literals?(node)
-          target_ruby_version >= 3.0 && (node.regexp_type? || node.range_type?)
+          target_ruby_version >= 3.0 && node.type?(:regexp, :range)
         end
 
         def requires_parentheses?(node)
@@ -239,7 +238,7 @@ module RuboCop
 
         # @!method range_enclosed_in_parentheses?(node)
         def_node_matcher :range_enclosed_in_parentheses?, <<~PATTERN
-          (begin ({irange erange} _ _))
+          (begin (range _ _))
         PATTERN
       end
     end

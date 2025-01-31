@@ -461,7 +461,7 @@ RSpec.describe RuboCop::Cop::Layout::ExtraSpacing, :config do
       RUBY
     end
 
-    it 'register offenses and correct consecutive operator assignments which are not aligned' do
+    it 'registers offenses and correct consecutive operator assignments which are not aligned' do
       expect_offense(<<~RUBY)
         a += 1
         bb = 2
@@ -512,7 +512,7 @@ RSpec.describe RuboCop::Cop::Layout::ExtraSpacing, :config do
       RUBY
     end
 
-    it 'register offenses and correct consecutive attribute assignments which are not aligned' do
+    it 'registers offenses and correct consecutive attribute assignments which are not aligned' do
       expect_offense(<<~RUBY)
         a.attr = 1
         bb &&= 2
@@ -538,7 +538,7 @@ RSpec.describe RuboCop::Cop::Layout::ExtraSpacing, :config do
       RUBY
     end
 
-    it 'register offenses and correct complex nested assignments' do
+    it 'registers offenses and correct complex nested assignments' do
       expect_offense(<<~RUBY)
         def batch
           @areas = params[:param].map {
@@ -601,6 +601,77 @@ RSpec.describe RuboCop::Cop::Layout::ExtraSpacing, :config do
           var = arg
         end
       RUBY
+    end
+
+    it 'registers an offense and corrects when there is = in a string after assignment' do
+      expect_offense(<<~RUBY)
+        e, f = val.split('=')
+        opt.ssh_config[e] = f
+                          ^ `=` is not aligned with the preceding assignment.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        e, f              = val.split('=')
+        opt.ssh_config[e] = f
+      RUBY
+    end
+
+    it 'registers an offense and corrects with op-asgn when there is = in a string after assignment' do
+      expect_offense(<<~RUBY)
+        xy &&= val.split('=')
+        opt.ssh_config[e] = f
+                          ^ `=` is not aligned with the preceding assignment.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        xy              &&= val.split('=')
+        opt.ssh_config[e] = f
+      RUBY
+    end
+
+    context 'endless methods', :ruby30 do
+      it 'does not register an offense when not aligned' do
+        expect_no_offenses(<<~RUBY)
+          def deleted = do_something
+          def updated = do_something
+          def added = do_something
+        RUBY
+      end
+
+      it 'does not register an offense with optional values' do
+        expect_no_offenses(<<~RUBY)
+          def deleted(x = true) = do_something(x)
+          def updated(x = true) = do_something(x)
+          def added(x = true) = do_something(x)
+        RUBY
+      end
+    end
+  end
+
+  context 'when exactly two comments have extra spaces' do
+    context 'and they are aligned' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          one  # comment one
+          two  # comment two
+        RUBY
+      end
+    end
+
+    context 'and they are not aligned' do
+      it 'registers an offense' do
+        expect_offense(<<~RUBY)
+          one  # comment one
+             ^ Unnecessary spacing detected.
+          two   # comment two
+             ^^ Unnecessary spacing detected.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          one # comment one
+          two # comment two
+        RUBY
+      end
     end
   end
 

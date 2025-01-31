@@ -3,23 +3,23 @@
 module RuboCop
   module Cop
     module Layout
-      # Checks if the code style follows the ExpectedOrder configuration:
+      # Checks if the code style follows the `ExpectedOrder` configuration:
       #
       # `Categories` allows us to map macro names into a category.
       #
       # Consider an example of code style that covers the following order:
       #
-      # * Module inclusion (include, prepend, extend)
+      # * Module inclusion (`include`, `prepend`, `extend`)
       # * Constants
-      # * Associations (has_one, has_many)
-      # * Public attribute macros (attr_accessor, attr_writer, attr_reader)
-      # * Other macros (validates, validate)
+      # * Associations (`has_one`, `has_many`)
+      # * Public attribute macros (`attr_accessor`, `attr_writer`, `attr_reader`)
+      # * Other macros (`validates`, `validate`)
       # * Public class methods
       # * Initializer
       # * Public instance methods
-      # * Protected attribute macros (attr_accessor, attr_writer, attr_reader)
+      # * Protected attribute macros (`attr_accessor`, `attr_writer`, `attr_reader`)
       # * Protected instance methods
-      # * Private attribute macros (attr_accessor, attr_writer, attr_reader)
+      # * Private attribute macros (`attr_accessor`, `attr_writer`, `attr_reader`)
       # * Private instance methods
       #
       # You can configure the following order:
@@ -236,7 +236,7 @@ module RuboCop
 
           return [] unless class_def
 
-          if class_def.def_type? || class_def.send_type?
+          if class_def.type?(:def, :send)
             [class_def]
           else
             class_def.children.compact
@@ -289,7 +289,7 @@ module RuboCop
         def marked_as_private_constant?(node, name)
           return false unless node.method?(:private_constant)
 
-          node.arguments.any? { |arg| (arg.sym_type? || arg.str_type?) && arg.value == name }
+          node.arguments.any? { |arg| arg.type?(:sym, :str) && arg.value == name }
         end
 
         def end_position_for(node)

@@ -2,8 +2,8 @@
 
 module RuboCop
   module Cop
-    # Common methods shared by Style/TrailingCommaInArguments and
-    # Style/TrailingCommaInLiteral
+    # Common methods shared by Style/TrailingCommaInArguments,
+    # Style/TrailingCommaInArrayLiteral and Style/TrailingCommaInHashLiteral
     module TrailingComma
       include ConfigurableEnforcedStyle
       include RangeHelp
@@ -181,7 +181,7 @@ module RuboCop
         #       ...
         #     SOURCE
         #   })
-        return heredoc?(node.children.last) if node.pair_type? || node.hash_type?
+        return heredoc?(node.children.last) if node.type?(:pair, :hash)
 
         false
       end

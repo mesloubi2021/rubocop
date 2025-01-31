@@ -19,6 +19,7 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Use `%<preferred>s`.'
+        RESTRICT_ON_SEND = [:==].freeze
 
         # @!method line_send(node)
         def_node_matcher :line_send, <<~PATTERN
@@ -36,10 +37,8 @@ module RuboCop
         def on_send(node)
           return unless location_line_equality_comparison?(node)
 
-          lhs, _op, rhs = *node
-
-          lhs_receiver = extract_receiver(lhs)
-          rhs_receiver = extract_receiver(rhs)
+          lhs_receiver = extract_receiver(node.receiver)
+          rhs_receiver = extract_receiver(node.first_argument)
           preferred = "same_line?(#{lhs_receiver}, #{rhs_receiver})"
 
           add_offense(node, message: format(MSG, preferred: preferred)) do |corrector|

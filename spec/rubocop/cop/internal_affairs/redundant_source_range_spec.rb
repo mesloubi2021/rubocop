@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 RSpec.describe RuboCop::Cop::InternalAffairs::RedundantSourceRange, :config do
+  it 'does not register an offense when using `source_range.source`' do
+    expect_no_offenses(<<~RUBY)
+      source_range.source
+    RUBY
+  end
+
   it 'registers an offense when using `node.source_range.source`' do
     expect_offense(<<~RUBY)
       node.source_range.source
@@ -12,9 +18,54 @@ RSpec.describe RuboCop::Cop::InternalAffairs::RedundantSourceRange, :config do
     RUBY
   end
 
+  it 'registers an offense when using `node.source_range&.source`' do
+    expect_offense(<<~RUBY)
+      node&.source_range&.source
+            ^^^^^^^^^^^^ Remove the redundant `source_range`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      node&.source
+    RUBY
+  end
+
   it 'does not register an offense when using `node.source`' do
     expect_no_offenses(<<~RUBY)
       node.source
+    RUBY
+  end
+
+  it 'does not register an offense when using `node&.source`' do
+    expect_no_offenses(<<~RUBY)
+      node&.source
+    RUBY
+  end
+
+  it 'registers an offense when using `add_offense(node.source_range)`' do
+    expect_offense(<<~RUBY)
+      add_offense(node.source_range)
+                       ^^^^^^^^^^^^ Remove the redundant `source_range`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      add_offense(node)
+    RUBY
+  end
+
+  it 'registers an offense when using `add_offense(node.source_range, message: message)`' do
+    expect_offense(<<~RUBY)
+      add_offense(node.source_range, message: message)
+                       ^^^^^^^^^^^^ Remove the redundant `source_range`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      add_offense(node, message: message)
+    RUBY
+  end
+
+  it 'does not register an offense when using `add_offense(node)`' do
+    expect_no_offenses(<<~RUBY)
+      add_offense(node)
     RUBY
   end
 

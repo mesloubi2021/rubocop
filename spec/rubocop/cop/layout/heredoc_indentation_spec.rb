@@ -255,7 +255,7 @@ RSpec.describe RuboCop::Cop::Layout::HeredocIndentation, :config do
     [nil, "'", '"', '`'].each { |quote| include_examples 'all heredoc type', quote }
   end
 
-  context 'when Ruby <= 2.2', :ruby22 do
+  context 'when Ruby <= 2.2', :ruby22, unsupported_on: :prism do
     it 'does not register an offense' do
       expect_no_offenses(<<~RUBY)
         <<-RUBY2

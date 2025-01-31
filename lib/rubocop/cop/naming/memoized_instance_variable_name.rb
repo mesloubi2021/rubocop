@@ -155,6 +155,7 @@ module RuboCop
         UNDERSCORE_REQUIRED = 'Memoized variable `%<var>s` does not start ' \
                               'with `_`. Use `@%<suggested_var>s` instead.'
         DYNAMIC_DEFINE_METHODS = %i[define_method define_singleton_method].to_set.freeze
+        INITIALIZE_METHODS = %i[initialize initialize_clone initialize_copy initialize_dup].freeze
 
         # @!method method_definition?(node)
         def_node_matcher :method_definition?, <<~PATTERN
@@ -168,7 +169,7 @@ module RuboCop
         # rubocop:disable Metrics/AbcSize
         # rubocop:disable Metrics/MethodLength
         def on_or_asgn(node)
-          lhs, _value = *node
+          lhs = node.lhs
           return unless lhs.ivasgn_type?
 
           method_node, method_name = find_definition(node)
@@ -181,8 +182,8 @@ module RuboCop
 
           suggested_var = suggested_var(method_name)
           msg = format(
-            message(lhs.children.first.to_s),
-            var: lhs.children.first.to_s,
+            message(lhs.name),
+            var: lhs.name,
             suggested_var: suggested_var,
             method: method_name
           )
@@ -203,20 +204,19 @@ module RuboCop
 
         # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
         def on_defined?(node)
-          arg = node.arguments.first
+          arg = node.first_argument
           return false unless arg.ivar_type?
 
           method_node, method_name = find_definition(node)
           return false unless method_node
 
-          var_name = arg.children.first
-          defined_memoized?(method_node.body, var_name) do |defined_ivar, return_ivar, ivar_assign|
+          defined_memoized?(method_node.body, arg.name) do |defined_ivar, return_ivar, ivar_assign|
             return false if matches?(method_name, ivar_assign)
 
             suggested_var = suggested_var(method_name)
             msg = format(
-              message(var_name.to_s),
-              var: var_name.to_s,
+              message(arg.name),
+              var: arg.name,
               suggested_var: suggested_var,
               method: method_name
             )
@@ -251,11 +251,10 @@ module RuboCop
         end
 
         def matches?(method_name, ivar_assign)
-          return true if ivar_assign.nil? || method_name == :initialize
+          return true if ivar_assign.nil? || INITIALIZE_METHODS.include?(method_name)
 
-          method_name = method_name.to_s.delete('!?')
-          variable = ivar_assign.children.first
-          variable_name = variable.to_s.sub('@', '')
+          method_name = method_name.to_s.delete('!?=')
+          variable_name = ivar_assign.name.to_s.sub('@', '')
 
           variable_name_candidates(method_name).include?(variable_name)
         end
@@ -269,7 +268,7 @@ module RuboCop
         end
 
         def suggested_var(method_name)
-          suggestion = method_name.to_s.delete('!?')
+          suggestion = method_name.to_s.delete('!?=')
 
           style == :required ? "_#{suggestion}" : suggestion
         end

@@ -1,9 +1,13 @@
 # frozen_string_literal: true
 
-RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
-  include LspHelper
+RSpec.describe RuboCop::LSP::Server, :isolated_environment do
+  include LSPHelper
 
   subject(:result) { run_server_on_requests(*requests) }
+
+  after do
+    RuboCop::LSP.disable
+  end
 
   let(:messages) { result[0] }
   let(:stderr) { result[1].string }
@@ -37,8 +41,7 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
         result: {
           capabilities: {
             textDocumentSync: { openClose: true, change: 1 },
-            documentFormattingProvider: true,
-            diagnosticProvider: { interFileDependencies: false, workspaceDiagnostics: false }
+            documentFormattingProvider: true
           }
         }
       )
@@ -71,67 +74,107 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
           diagnostics: [
             {
               code: 'Style/FrozenStringLiteralComment',
-              message: 'Missing frozen string literal comment.',
+              codeDescription: {
+                href: 'https://docs.rubocop.org/rubocop/cops_style.html#stylefrozenstringliteralcomment'
+              },
+              data: {
+                code_actions: [
+                  {
+                    edit: {
+                      documentChanges: [
+                        edits: [
+                          {
+                            newText: "# frozen_string_literal: true\n",
+                            range: {
+                              start: { character: 0, line: 0 },
+                              end: { character: 0, line: 0 }
+                            }
+                          }
+                        ],
+                        textDocument: { uri: 'file:///path/to/file.rb', version: nil }
+                      ]
+                    },
+                    kind: 'quickfix',
+                    title: 'Autocorrect Style/FrozenStringLiteralComment',
+                    isPreferred: true
+                  }, {
+                    edit: {
+                      documentChanges: [
+                        edits: [
+                          {
+                            newText: ' # rubocop:disable Style/FrozenStringLiteralComment',
+                            range: {
+                              start: { character: 6, line: 0 },
+                              end: { character: 6, line: 0 }
+                            }
+                          }
+                        ],
+                        textDocument: { uri: 'file:///path/to/file.rb', version: nil }
+                      ]
+                    },
+                    kind: 'quickfix',
+                    title: 'Disable Style/FrozenStringLiteralComment for this line'
+                  }
+                ],
+                correctable: true
+              },
+              message: 'Style/FrozenStringLiteralComment: Missing frozen string literal comment.',
               range: {
-                start: { character: 0, line: 0 }, end: { character: 0, line: 0 }
+                start: { character: 0, line: 0 },
+                end: { character: 1, line: 0 }
               },
               severity: 3,
-              source: 'rubocop'
+              source: 'RuboCop'
             }, {
               code: 'Layout/SpaceInsideArrayLiteralBrackets',
-              message: 'Do not use space inside array brackets.',
+              codeDescription: {
+                href: 'https://docs.rubocop.org/rubocop/cops_layout.html#layoutspaceinsidearrayliteralbrackets'
+              },
+              data: {
+                code_actions: [
+                  {
+                    edit: {
+                      documentChanges: [
+                        edits: [
+                          newText: '', range: {
+                            end: { character: 6, line: 2 },
+                            start: { character: 4, line: 2 }
+                          }
+                        ],
+                        textDocument: { uri: 'file:///path/to/file.rb', version: nil }
+                      ]
+                    },
+                    kind: 'quickfix',
+                    title: 'Autocorrect Layout/SpaceInsideArrayLiteralBrackets',
+                    isPreferred: true
+                  }, {
+                    edit: {
+                      documentChanges: [
+                        edits: [
+                          newText: ' # rubocop:disable Layout/SpaceInsideArrayLiteralBrackets',
+                          range: {
+                            end: { character: 7, line: 2 },
+                            start: {
+                              character: 7, line: 2
+                            }
+                          }
+                        ],
+                        textDocument: { uri: 'file:///path/to/file.rb', version: nil }
+                      ]
+                    },
+                    kind: 'quickfix',
+                    title: 'Disable Layout/SpaceInsideArrayLiteralBrackets for this line'
+                  }
+                ],
+                correctable: true
+              },
+              message: 'Layout/SpaceInsideArrayLiteralBrackets: Do not use space inside array brackets.', # rubocop:disable Layout/LineLength
               range: {
-                start: { character: 4, line: 2 }, end: { character: 5, line: 2 }
+                start: { character: 4, line: 2 },
+                end: { character: 6, line: 2 }
               },
               severity: 3,
-              source: 'rubocop'
-            }
-          ], uri: 'file:///path/to/file.rb'
-        }
-      )
-    end
-  end
-
-  describe 'diagnotic route' do
-    let(:requests) do
-      [
-        jsonrpc: '2.0',
-        method: 'textDocument/diagnostic',
-        params: {
-          textDocument: {
-            languageId: 'ruby',
-            text: "def hi#{eol}  [1, 2,#{eol}   3  ]#{eol}end#{eol}",
-            uri: 'file:///path/to/file.rb',
-            version: 0
-          }
-        }
-      ]
-    end
-
-    it 'handles requests' do
-      expect(stderr).to eq('')
-      expect(messages.count).to eq(1)
-      expect(messages.first).to eq(
-        jsonrpc: '2.0',
-        method: 'textDocument/publishDiagnostics',
-        params: {
-          diagnostics: [
-            {
-              code: 'Style/FrozenStringLiteralComment',
-              message: 'Missing frozen string literal comment.',
-              range: {
-                start: { character: 0, line: 0 }, end: { character: 0, line: 0 }
-              },
-              severity: 3,
-              source: 'rubocop'
-            }, {
-              code: 'Layout/SpaceInsideArrayLiteralBrackets',
-              message: 'Do not use space inside array brackets.',
-              range: {
-                start: { character: 4, line: 2 }, end: { character: 5, line: 2 }
-              },
-              severity: 3,
-              source: 'rubocop'
+              source: 'RuboCop'
             }
           ], uri: 'file:///path/to/file.rb'
         }
@@ -188,6 +231,51 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
           }
         ]
       )
+    end
+  end
+
+  describe 'format by default (safe autocorrect) with an `AutoCorrect: contextual` cop' do
+    let(:empty_comment) { "##{eol}" }
+
+    let(:requests) do
+      [
+        {
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
+          params: {
+            textDocument: {
+              languageId: 'ruby',
+              text: empty_comment,
+              uri: 'file:///path/to/file.rb',
+              version: 0
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          method: 'textDocument/didChange',
+          params: {
+            contentChanges: [{ text: empty_comment }],
+            textDocument: {
+              uri: 'file:///path/to/file.rb',
+              version: 10
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          id: 20,
+          method: 'textDocument/formatting',
+          params: {
+            options: { insertSpaces: true, tabSize: 2 },
+            textDocument: { uri: 'file:///path/to/file.rb' }
+          }
+        }
+      ]
+    end
+
+    it 'handles requests, but does not autocorrect with `Layout/EmptyComment` as an `AutoCorrect: contextual` cop' do
+      expect(stderr).to eq('')
+      format_result = messages.last
+      expect(format_result).to eq(jsonrpc: '2.0', id: 20, result: [])
     end
   end
 
@@ -976,7 +1064,7 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
 
     it 'handles requests' do
       expect(stderr).to eq('')
-      expect(messages.empty?).to be(true)
+      expect(messages).to be_empty
     end
   end
 
@@ -1018,6 +1106,55 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
             changes: {
               'file:///path/to/file.rb': [
                 newText: "puts 'hi'\n",
+                range: {
+                  start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
+                }
+              ]
+            }
+          }
+        }
+      )
+    end
+  end
+
+  describe 'execute command safe formatting with `Lint/UnusedBlockArgument` cop (`AutoCorrect: contextual`)' do
+    let(:requests) do
+      [
+        {
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
+          params: {
+            textDocument: {
+              languageId: 'ruby',
+              text: 'foo { |unused_variable| 42 }',
+              uri: 'file:///path/to/file.rb',
+              version: 0
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          id: 99,
+          method: 'workspace/executeCommand',
+          params: {
+            command: 'rubocop.formatAutocorrects',
+            arguments: [uri: 'file:///path/to/file.rb']
+          }
+        }
+      ]
+    end
+
+    it 'handles requests' do
+      expect(stderr).to eq('')
+      expect(messages.last).to eq(
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'workspace/applyEdit',
+        params: {
+          label: 'Format with RuboCop autocorrects',
+          edit: {
+            changes: {
+              'file:///path/to/file.rb': [
+                newText: "foo { |_unused_variable| 42 }\n",
                 range: {
                   start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
                 }
@@ -1135,9 +1272,6 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
           uri: "file://#{Dir.pwd}/tmp/foo/bar.rb"
         }
       )
-      expect(stderr.chomp).to eq(
-        "[server] Ignoring file, per configuration: #{Dir.pwd}/tmp/foo/bar.rb"
-      )
     end
   end
 
@@ -1182,9 +1316,6 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
           }
         }
       )
-      expect(stderr.chomp).to eq(
-        "[server] Ignoring file, per configuration: #{Dir.pwd}/tmp/baz.rb"
-      )
     end
   end
 
@@ -1228,15 +1359,12 @@ RSpec.describe RuboCop::Lsp::Server, :isolated_environment do
     it 'handles requests' do
       format_result = messages.last
       expect(format_result).to eq(jsonrpc: '2.0', id: 20, result: [])
-      expect(stderr.chomp).to eq(
-        "[server] Ignoring file, per configuration: #{Dir.pwd}/tmp/zzz.rb"
-      )
     end
   end
 
   context 'when an internal error occurs' do
     before do
-      allow_any_instance_of(RuboCop::Lsp::Routes).to receive(:for).with('initialize').and_raise # rubocop:disable RSpec/AnyInstance
+      allow_any_instance_of(RuboCop::LSP::Routes).to receive(:for).with('initialize').and_raise # rubocop:disable RSpec/AnyInstance
     end
 
     let(:requests) do

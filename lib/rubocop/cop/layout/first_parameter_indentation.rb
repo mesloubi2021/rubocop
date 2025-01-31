@@ -5,10 +5,10 @@ module RuboCop
     module Layout
       # Checks the indentation of the first parameter in a method
       # definition. Parameters after the first one are checked by
-      # Layout/ParameterAlignment, not by this cop.
+      # `Layout/ParameterAlignment`, not by this cop.
       #
       # For indenting the first argument of method _calls_, check out
-      # Layout/FirstArgumentIndentation, which supports options related to
+      # `Layout/FirstArgumentIndentation`, which supports options related to
       # nesting that are irrelevant for method _definitions_.
       #
       # @example
@@ -72,7 +72,7 @@ module RuboCop
           return if ignored_node?(def_node)
 
           left_parenthesis = def_node.arguments.loc.begin
-          first_elem = def_node.arguments.first
+          first_elem = def_node.first_argument
           return unless first_elem
           return if same_line?(first_elem, left_parenthesis)
 

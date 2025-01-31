@@ -149,7 +149,8 @@ module RuboCop
           newline_pos = source_buffer.source.index("\n", end_pos)
 
           # Handle the case when multiple one-liners are on the same line.
-          newline_pos = end_pos + 1 if newline_pos > node.source_range.begin_pos
+          begin_pos = node.source_range.begin_pos
+          newline_pos = begin_pos - 1 if newline_pos > begin_pos
 
           if count > maximum_empty_lines
             autocorrect_remove_lines(corrector, newline_pos, count)
@@ -161,7 +162,7 @@ module RuboCop
         private
 
         def def_location(correction_node)
-          if correction_node.block_type?
+          if correction_node.any_block_type?
             correction_node.source_range.join(correction_node.children.first.source_range)
           else
             correction_node.loc.keyword.join(correction_node.loc.name)
@@ -180,12 +181,12 @@ module RuboCop
         end
 
         def macro_candidate?(node)
-          node.block_type? && node.children.first.macro? &&
+          node.any_block_type? && node.children.first.macro? &&
             empty_line_between_macros.include?(node.children.first.method_name)
         end
 
         def method_candidate?(node)
-          cop_config['EmptyLineBetweenMethodDefs'] && (node.def_type? || node.defs_type?)
+          cop_config['EmptyLineBetweenMethodDefs'] && node.type?(:def, :defs)
         end
 
         def class_candidate?(node)
@@ -245,7 +246,7 @@ module RuboCop
         end
 
         def def_start(node)
-          if node.block_type? && node.children.first.send_type?
+          if node.any_block_type? && node.children.first.send_type?
             node.source_range.line
           else
             node.loc.keyword.line
@@ -257,7 +258,7 @@ module RuboCop
         end
 
         def end_loc(node)
-          if (node.def_type? || node.defs_type?) && node.endless?
+          if node.type?(:def, :defs) && node.endless?
             node.source_range.end
           else
             node.loc.end
@@ -282,6 +283,8 @@ module RuboCop
           case node.type
           when :def, :defs
             :method
+          when :numblock
+            :block
           else
             node.type
           end

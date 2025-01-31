@@ -63,6 +63,7 @@ module RuboCop
           end
         end
         # rubocop:enable Metrics
+        alias on_csend on_send
 
         private
 
@@ -85,7 +86,7 @@ module RuboCop
 
         def percent_literals_includes_only_basic_literals?(node)
           node.arguments.select(&:percent_literal?).all? do |arg|
-            arg.children.all? { |child| child.str_type? || child.sym_type? }
+            arg.children.all? { |child| child.type?(:str, :sym) }
           end
         end
       end

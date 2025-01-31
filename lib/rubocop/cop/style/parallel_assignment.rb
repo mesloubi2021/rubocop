@@ -28,28 +28,25 @@ module RuboCop
 
         MSG = 'Do not use parallel assignment.'
 
-        def on_masgn(node)
-          lhs, rhs = *node
-          lhs_elements = *lhs
+        def on_masgn(node) # rubocop:disable Metrics/AbcSize
+          rhs = node.rhs
           rhs = rhs.body if rhs.rescue_type?
           rhs_elements = Array(rhs).compact # edge case for one constant
 
-          return if allowed_lhs?(lhs) || allowed_rhs?(rhs) ||
-                    allowed_masign?(lhs_elements, rhs_elements)
+          return if allowed_lhs?(node.assignments) || allowed_rhs?(rhs) ||
+                    allowed_masign?(node.assignments, rhs_elements)
 
           range = node.source_range.begin.join(rhs.source_range.end)
 
           add_offense(range) do |corrector|
-            autocorrect(corrector, node, lhs, rhs)
+            autocorrect(corrector, node, rhs)
           end
         end
 
         private
 
-        def autocorrect(corrector, node, lhs, rhs)
-          left_elements = *lhs
-          right_elements = Array(rhs).compact
-          order = find_valid_order(left_elements, right_elements)
+        def autocorrect(corrector, node, rhs)
+          order = find_valid_order(node.assignments, Array(rhs).compact)
           correction = assignment_corrector(node, rhs, order)
 
           corrector.replace(correction.correction_range, correction.correction)
@@ -61,9 +58,7 @@ module RuboCop
                               add_self_to_getters(rhs_elements))
         end
 
-        def allowed_lhs?(node)
-          elements = *node
-
+        def allowed_lhs?(elements)
           # Account for edge cases using one variable with a comma
           # E.g.: `foo, = *bar`
           elements.one? || elements.any?(&:splat_type?)
@@ -74,11 +69,7 @@ module RuboCop
           elements = Array(node).compact
 
           # Account for edge case of `Constant::CONSTANT`
-          !node.array_type? || return_of_method_call?(node) || elements.any?(&:splat_type?)
-        end
-
-        def return_of_method_call?(node)
-          node.block_type? || node.send_type?
+          !node.array_type? || elements.any?(&:splat_type?)
         end
 
         def assignment_corrector(node, rhs, order)
@@ -142,8 +133,8 @@ module RuboCop
             @assignments = assignments
           end
 
-          def tsort_each_node(&block)
-            @assignments.each(&block)
+          def tsort_each_node(...)
+            @assignments.each(...)
           end
 
           def tsort_each_child(assignment)
@@ -211,15 +202,16 @@ module RuboCop
           protected
 
           def assignment
-            @new_elements.map { |lhs, rhs| "#{lhs.source} = #{source(rhs)}" }
+            @new_elements.map { |lhs, rhs| "#{lhs.source} = #{source(rhs, rhs.loc)}" }
           end
 
           private
 
-          def source(node)
-            if node.str_type? && node.loc.begin.nil?
+          def source(node, loc)
+            # __FILE__ is treated as a StrNode but has no begin
+            if node.str_type? && loc.respond_to?(:begin) && loc.begin.nil?
               "'#{node.source}'"
-            elsif node.sym_type? && node.loc.begin.nil?
+            elsif node.sym_type? && loc.begin.nil?
               ":#{node.source}"
             else
               node.source
@@ -289,9 +281,7 @@ module RuboCop
           private
 
           def modifier_range(node)
-            Parser::Source::Range.new(node.source_range.source_buffer,
-                                      node.loc.keyword.begin_pos,
-                                      node.source_range.end_pos)
+            node.loc.keyword.join(node.source_range.end)
           end
         end
       end

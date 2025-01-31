@@ -4,7 +4,7 @@ module RuboCop
   module Cop
     module Style
       # Enforces the presence (default) or absence of parentheses in
-      # method calls containing parameters.
+      # method calls containing arguments.
       #
       # In the default style (require_parentheses), macro methods are allowed.
       # Additional methods can be added to the `AllowedMethods` or
@@ -61,6 +61,8 @@ module RuboCop
       #   https://bugs.ruby-lang.org/issues/18396.
       # - Parentheses are required in anonymous arguments, keyword arguments
       #   and block passing in Ruby 3.2.
+      # - Parentheses are required when the first argument is a beginless range or
+      #   the last argument is an endless range.
       #
       # @example EnforcedStyle: require_parentheses (default)
       #
@@ -218,15 +220,13 @@ module RuboCop
           send(style, node) # call require_parentheses or omit_parentheses
         end
         alias on_csend on_send
-        alias on_super on_send
         alias on_yield on_send
 
         private
 
         def args_begin(node)
           loc = node.loc
-          selector =
-            node.super_type? || node.yield_type? ? loc.keyword : loc.selector
+          selector = node.yield_type? ? loc.keyword : loc.selector
 
           resize_by = args_parenthesized?(node) ? 2 : 1
           selector.end.resize(resize_by)
@@ -239,7 +239,7 @@ module RuboCop
         def args_parenthesized?(node)
           return false unless node.arguments.one?
 
-          first_node = node.arguments.first
+          first_node = node.first_argument
           first_node.begin_type? && first_node.parenthesized_call?
         end
       end

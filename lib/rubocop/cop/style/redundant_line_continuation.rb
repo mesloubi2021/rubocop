@@ -69,16 +69,24 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Redundant line continuation.'
+        LINE_CONTINUATION = '\\'
+        LINE_CONTINUATION_PATTERN = /(\\\n)/.freeze
         ALLOWED_STRING_TOKENS = %i[tSTRING tSTRING_CONTENT].freeze
         ARGUMENT_TYPES = %i[
-          kFALSE kNIL kSELF kTRUE tCONSTANT tCVAR tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR
-          tLBRACK tLCURLY tLPAREN_ARG tSTRING tSTRING_BEG tSYMBOL tXSTRING_BEG
+          kDEF kDEFINED kFALSE kNIL kSELF kTRUE tAMPER tBANG tCARET tCHARACTER tCOLON3 tCONSTANT
+          tCVAR tDOT2 tDOT3 tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR tLAMBDA tLBRACK tLCURLY
+          tLPAREN_ARG tPIPE tQSYMBOLS_BEG tQWORDS_BEG tREGEXP_BEG tSTAR tSTRING tSTRING_BEG tSYMBEG
+          tSYMBOL tSYMBOLS_BEG tTILDE tUMINUS tUNARY_NUM tUPLUS tWORDS_BEG tXSTRING_BEG
         ].freeze
+        ARGUMENT_TAKING_FLOW_TOKEN_TYPES = %i[
+          tIDENTIFIER kBREAK kNEXT kRETURN kSUPER kYIELD
+        ].freeze
+        ARITHMETIC_OPERATOR_TOKENS = %i[tDIVIDE tDSTAR tMINUS tPERCENT tPLUS tSTAR2].freeze
 
         def on_new_investigation
           return unless processed_source.ast
 
-          each_match_range(processed_source.ast.source_range, /(\\\n)/) do |range|
+          each_match_range(processed_source.ast.source_range, LINE_CONTINUATION_PATTERN) do |range|
             next if require_line_continuation?(range)
             next unless redundant_line_continuation?(range)
 
@@ -86,19 +94,27 @@ module RuboCop
               corrector.remove_leading(range, 1)
             end
           end
+
+          inspect_end_of_ruby_code_line_continuation
         end
 
         private
 
         def require_line_continuation?(range)
-          !ends_with_backslash_without_comment?(range.source_line) ||
+          !ends_with_uncommented_backslash?(range) ||
             string_concatenation?(range.source_line) ||
-            start_with_arithmetic_operator?(processed_source[range.line]) ||
-            inside_string_literal_or_method_with_argument?(range)
+            start_with_arithmetic_operator?(range) ||
+            inside_string_literal_or_method_with_argument?(range) ||
+            leading_dot_method_chain_with_blank_line?(range)
         end
 
-        def ends_with_backslash_without_comment?(source_line)
-          source_line.gsub(/#.+/, '').end_with?('\\')
+        def ends_with_uncommented_backslash?(range)
+          # A line continuation always needs to be the last character on the line, which
+          # means that it is impossible to have a comment following a continuation.
+          # Therefore, if the line contains a comment, it cannot end with a continuation.
+          return false if processed_source.line_with_comment?(range.line)
+
+          range.source_line.end_with?(LINE_CONTINUATION)
         end
 
         def string_concatenation?(source_line)
@@ -106,17 +122,48 @@ module RuboCop
         end
 
         def inside_string_literal_or_method_with_argument?(range)
+          line_range = range_by_whole_lines(range)
+
           processed_source.tokens.each_cons(2).any? do |token, next_token|
-            inside_string_literal?(range, token) || method_with_argument?(token, next_token)
+            next if token.line == next_token.line
+
+            inside_string_literal?(range, token) ||
+              method_with_argument?(line_range, token, next_token)
           end
         end
 
+        def leading_dot_method_chain_with_blank_line?(range)
+          return false unless range.source_line.strip.start_with?('.', '&.')
+
+          processed_source[range.line].strip.empty?
+        end
+
         def redundant_line_continuation?(range)
-          return true unless (node = find_node_for_line(range.line))
+          return true unless (node = find_node_for_line(range.last_line))
           return false if argument_newline?(node)
 
-          source = node.parent ? node.parent.source : node.source
-          parse(source.gsub("\\\n", "\n")).valid_syntax?
+          # Check if source is still valid without the continuation
+          source = processed_source.raw_source.dup
+          source[range.begin_pos, range.length] = "\n"
+          parse(source).valid_syntax?
+        end
+
+        def inspect_end_of_ruby_code_line_continuation
+          last_line = processed_source.lines[processed_source.ast.last_line - 1]
+          return unless code_ends_with_continuation?(last_line)
+
+          last_column = last_line.length
+          line_continuation_range = range_between(last_column - 1, last_column)
+
+          add_offense(line_continuation_range) do |corrector|
+            corrector.remove_trailing(line_continuation_range, 1)
+          end
+        end
+
+        def code_ends_with_continuation?(last_line)
+          return false if processed_source.line_with_comment?(processed_source.ast.last_line)
+
+          last_line.end_with?(LINE_CONTINUATION)
         end
 
         def inside_string_literal?(range, token)
@@ -127,11 +174,18 @@ module RuboCop
         #
         #   do_something \
         #     argument
-        def method_with_argument?(current_token, next_token)
-          current_token.type == :tIDENTIFIER && ARGUMENT_TYPES.include?(next_token.type)
+        def method_with_argument?(line_range, current_token, next_token)
+          return false unless ARGUMENT_TAKING_FLOW_TOKEN_TYPES.include?(current_token.type)
+          return false unless current_token.pos.overlaps?(line_range)
+
+          ARGUMENT_TYPES.include?(next_token.type)
         end
 
+        # rubocop:disable Metrics/AbcSize
         def argument_newline?(node)
+          node = node.to_a.last if node.assignment?
+          return false if node.parenthesized_call?
+
           node = node.children.first if node.root? && node.begin_type?
 
           if argument_is_method?(node)
@@ -142,10 +196,11 @@ module RuboCop
             node.loc.selector.line != node.first_argument.loc.line
           end
         end
+        # rubocop:enable Metrics/AbcSize
 
-        def find_node_for_line(line)
+        def find_node_for_line(last_line)
           processed_source.ast.each_node do |node|
-            return node if same_line?(node, line)
+            return node if same_line?(node, last_line)
           end
         end
 
@@ -174,8 +229,9 @@ module RuboCop
           node.call_type? && !node.arguments.empty?
         end
 
-        def start_with_arithmetic_operator?(source_line)
-          %r{\A\s*[+\-*/%]}.match?(source_line)
+        def start_with_arithmetic_operator?(range)
+          line_range = processed_source.buffer.line_range(range.line + 1)
+          ARITHMETIC_OPERATOR_TOKENS.include?(processed_source.first_token_of(line_range).type)
         end
       end
     end

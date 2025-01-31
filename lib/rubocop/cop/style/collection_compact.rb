@@ -19,10 +19,11 @@ module RuboCop
       # @example
       #   # bad
       #   array.reject(&:nil?)
-      #   array.delete_if(&:nil?)
       #   array.reject { |e| e.nil? }
-      #   array.delete_if { |e| e.nil? }
       #   array.select { |e| !e.nil? }
+      #   array.filter { |e| !e.nil? }
+      #   array.grep_v(nil)
+      #   array.grep_v(NilClass)
       #
       #   # good
       #   array.compact
@@ -31,6 +32,7 @@ module RuboCop
       #   hash.reject!(&:nil?)
       #   hash.reject! { |k, v| v.nil? }
       #   hash.select! { |k, v| !v.nil? }
+      #   hash.filter! { |k, v| !v.nil? }
       #
       #   # good
       #   hash.compact!
@@ -46,14 +48,15 @@ module RuboCop
         extend TargetRubyVersion
 
         MSG = 'Use `%<good>s` instead of `%<bad>s`.'
-        RESTRICT_ON_SEND = %i[reject delete_if reject! select select!].freeze
+        RESTRICT_ON_SEND = %i[reject reject! select select! filter filter! grep_v].freeze
         TO_ENUM_METHODS = %i[to_enum lazy].freeze
+        FILTER_METHODS = %i[filter filter!].freeze
 
         minimum_target_ruby_version 2.4
 
         # @!method reject_method_with_block_pass?(node)
         def_node_matcher :reject_method_with_block_pass?, <<~PATTERN
-          (send !nil? {:reject :delete_if :reject!}
+          (call !nil? {:reject :reject!}
             (block_pass
               (sym :nil?)))
         PATTERN
@@ -61,41 +64,47 @@ module RuboCop
         # @!method reject_method?(node)
         def_node_matcher :reject_method?, <<~PATTERN
           (block
-            (send
-              !nil? {:reject :delete_if :reject!})
+            (call
+              !nil? {:reject :reject!})
             $(args ...)
-            (send
+            (call
               $(lvar _) :nil?))
         PATTERN
 
         # @!method select_method?(node)
         def_node_matcher :select_method?, <<~PATTERN
           (block
-            (send
-              !nil? {:select :select!})
+            (call
+              !nil? {:select :select! :filter :filter!})
             $(args ...)
-            (send
-              (send
+            (call
+              (call
                 $(lvar _) :nil?) :!))
         PATTERN
 
+        # @!method grep_v_with_nil?(node)
+        def_node_matcher :grep_v_with_nil?, <<~PATTERN
+          (send _ :grep_v {(nil) (const {nil? cbase} :NilClass)})
+        PATTERN
+
         def on_send(node)
+          return if target_ruby_version < 2.6 && FILTER_METHODS.include?(node.method_name)
           return unless (range = offense_range(node))
           return if allowed_receiver?(node.receiver)
-          if (target_ruby_version <= 3.0 || node.method?(:delete_if)) && to_enum_method?(node)
-            return
-          end
+          return if target_ruby_version <= 3.0 && to_enum_method?(node)
 
           good = good_method_name(node)
           message = format(MSG, good: good, bad: range.source)
 
           add_offense(range, message: message) { |corrector| corrector.replace(range, good) }
         end
+        alias on_csend on_send
 
         private
 
+        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def offense_range(node)
-          if reject_method_with_block_pass?(node)
+          if reject_method_with_block_pass?(node) || grep_v_with_nil?(node)
             range(node, node)
           else
             block_node = node.parent
@@ -109,6 +118,7 @@ module RuboCop
             range(node, block_node)
           end
         end
+        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def to_enum_method?(node)
           return false unless node.receiver.send_type?

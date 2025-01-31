@@ -60,20 +60,40 @@ RSpec.describe RuboCop::Cop::Util do
     let(:ivar_baz_node) { nodes[2] }
 
     it 'returns true when two nodes are on the same line' do
-      expect(described_class.same_line?(ivar_foo_node, ivar_bar_node)).to be(true)
+      expect(described_class).to be_same_line(ivar_foo_node, ivar_bar_node)
     end
 
     it 'returns false when two nodes are not on the same line' do
-      expect(described_class.same_line?(ivar_foo_node, ivar_baz_node)).to be_falsey
+      expect(described_class).not_to be_same_line(ivar_foo_node, ivar_baz_node)
     end
 
     it 'can use ranges' do
-      expect(described_class.same_line?(ivar_foo_node.source_range, ivar_bar_node)).to be(true)
+      expect(described_class).to be_same_line(ivar_foo_node.source_range, ivar_bar_node)
     end
 
     it 'returns false if an argument is not a node or range' do
-      expect(described_class.same_line?(ivar_foo_node, 5)).to be_falsey
-      expect(described_class.same_line?(5, ivar_bar_node)).to be_falsey
+      expect(described_class).not_to be_same_line(ivar_foo_node, 5)
+      expect(described_class).not_to be_same_line(5, ivar_bar_node)
+    end
+  end
+
+  describe '#parse_regexp' do
+    it 'returns parsed expression structure on valid regexp' do
+      expect(described_class.parse_regexp('a+')).to be_a(Regexp::Expression::Root)
+    end
+
+    it 'returns `nil` on invalid regexp' do
+      expect(described_class.parse_regexp('+')).to be_nil
+    end
+  end
+
+  describe '#to_string_literal' do
+    it 'returns literal for normal string' do
+      expect(TestUtil.new.send(:to_string_literal, 'foo')).to eq("'foo'")
+    end
+
+    it 'returns literal for string which requires escaping' do
+      expect(TestUtil.new.send(:to_string_literal, 'foo\'')).to eq('"foo\'"')
     end
   end
 end

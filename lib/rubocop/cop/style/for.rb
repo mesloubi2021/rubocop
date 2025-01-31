@@ -44,7 +44,6 @@ module RuboCop
       #
       class For < Base
         include ConfigurableEnforcedStyle
-        include RangeHelp
         extend AutoCorrector
 
         EACH_LENGTH = 'each'.length
@@ -66,6 +65,8 @@ module RuboCop
           return unless suspect_enumerable?(node)
 
           if style == :for
+            return unless node.receiver
+
             add_offense(node, message: PREFER_FOR) do |corrector|
               EachToForCorrector.new(node).call(corrector)
               opposite_style_detected

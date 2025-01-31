@@ -116,9 +116,9 @@ module RuboCop
             add_offense(range, message: create_message(word)) do |corrector|
               suggestions = find_flagged_term(word)['Suggestions']
 
-              next unless suggestions.is_a?(String)
-
-              corrector.replace(range, suggestions)
+              if (preferred_term = preferred_sole_term(suggestions))
+                corrector.replace(range, preferred_term)
+              end
             end
           end
         end
@@ -155,6 +155,15 @@ module RuboCop
           end
 
           set_regexes(flagged_term_strings, allowed_strings)
+        end
+
+        def preferred_sole_term(suggestions)
+          case suggestions
+          when Array
+            suggestions.one? && preferred_sole_term(suggestions.first)
+          when String
+            suggestions
+          end
         end
 
         def extract_regexp(term, term_definition)
@@ -207,8 +216,7 @@ module RuboCop
             message = create_multiple_word_message_for_file(words)
           end
 
-          range = source_range(processed_source.buffer, 1, 0)
-          add_offense(range, message: message)
+          add_global_offense(message)
         end
 
         def create_single_word_message_for_file(word)

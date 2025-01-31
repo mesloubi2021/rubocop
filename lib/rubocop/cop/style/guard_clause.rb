@@ -234,11 +234,11 @@ module RuboCop
         end
 
         def autocorrect_heredoc_argument(corrector, node, heredoc_branch, leave_branch, guard)
+          remove_whole_lines(corrector, node.loc.end)
           return unless node.else?
 
           remove_whole_lines(corrector, leave_branch.source_range)
           remove_whole_lines(corrector, node.loc.else)
-          remove_whole_lines(corrector, node.loc.end)
           remove_whole_lines(corrector, range_of_branch_to_remove(node, guard))
           corrector.insert_after(
             heredoc_branch.last_argument.loc.heredoc_end, "\n#{leave_branch.source}"
@@ -264,7 +264,7 @@ module RuboCop
 
         def and_or_guard_clause?(guard_clause)
           parent = guard_clause.parent
-          parent.and_type? || parent.or_type?
+          parent.operator_keyword?
         end
 
         def too_long_for_single_line?(node, example)
@@ -277,17 +277,32 @@ module RuboCop
         end
 
         def trivial?(node)
+          return false unless node.if_branch
+
           node.branches.one? && !node.if_branch.if_type? && !node.if_branch.begin_type?
         end
 
         def accepted_if?(node, ending)
-          return true if node.modifier_form? || node.ternary? || node.elsif_conditional?
+          return true if node.modifier_form? || node.ternary? || node.elsif_conditional? ||
+                         assigned_lvar_used_in_if_branch?(node)
 
           if ending
             node.else?
           else
             !node.else? || node.elsif?
           end
+        end
+
+        def assigned_lvar_used_in_if_branch?(node)
+          return false unless (if_branch = node.if_branch)
+
+          assigned_lvars_in_condition = node.condition.each_descendant(:lvasgn).map do |lvasgn|
+            lvar_name, = *lvasgn
+            lvar_name.to_s
+          end
+          used_lvars_in_branch = if_branch.each_descendant(:lvar).map(&:source) || []
+
+          (assigned_lvars_in_condition & used_lvars_in_branch).any?
         end
 
         def remove_whole_lines(corrector, range)

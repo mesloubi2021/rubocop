@@ -44,7 +44,6 @@ module RuboCop
       #   # good
       #   foo == bar
       #
-      # @example
       #   # bad
       #   if foo.do_something?
       #     true
@@ -68,7 +67,7 @@ module RuboCop
 
         # @!method if_with_boolean_literal_branches?(node)
         def_node_matcher :if_with_boolean_literal_branches?, <<~PATTERN
-          (if #return_boolean_value? {(true) (false) | (false) (true)})
+          (if #return_boolean_value? <true false>)
         PATTERN
         # @!method double_negative?(node)
         def_node_matcher :double_negative?, '(send (send _ :!) :!)'
@@ -112,9 +111,11 @@ module RuboCop
         end
 
         def message(node, keyword)
-          message_template = node.elsif? ? MSG_FOR_ELSIF : MSG
-
-          format(message_template, keyword: keyword)
+          if node.elsif?
+            MSG_FOR_ELSIF
+          else
+            format(MSG, keyword: keyword)
+          end
         end
 
         def return_boolean_value?(condition)
@@ -154,8 +155,7 @@ module RuboCop
         end
 
         def require_parentheses?(condition)
-          condition.and_type? || condition.or_type? ||
-            (condition.send_type? && condition.comparison_method?)
+          condition.operator_keyword? || (condition.send_type? && condition.comparison_method?)
         end
       end
     end

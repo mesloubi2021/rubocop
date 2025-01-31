@@ -97,7 +97,7 @@ module RuboCop
 
         # @!method class_new_block(node)
         def_node_matcher :class_new_block, <<~RUBY
-          ({block numblock}
+          (any_block
             (send
               (const {nil? cbase} :Class) :new $_) ...)
         RUBY
@@ -135,7 +135,7 @@ module RuboCop
         end
 
         def inside_class_with_stateful_parent?(node)
-          if (block_node = node.each_ancestor(:block, :numblock).first)
+          if (block_node = node.each_ancestor(:any_block).first)
             return false unless (super_class = class_new_block(block_node))
 
             !allowed_class?(super_class)

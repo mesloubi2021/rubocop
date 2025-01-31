@@ -100,7 +100,7 @@ module RuboCop
 
         def extra_indentation(given_style, parent)
           if given_style == :indented_relative_to_receiver
-            if parent && (parent.splat_type? || parent.kwsplat_type?)
+            if parent&.type?(:splat, :kwsplat)
               configured_indentation_width - parent.loc.operator.length
             else
               configured_indentation_width
@@ -224,7 +224,7 @@ module RuboCop
         end
 
         def find_multiline_block_chain_node(node)
-          return unless (block_node = node.each_descendant(:block, :numblock).first)
+          return unless (block_node = node.each_descendant(:any_block).first)
           return unless block_node.multiline? && block_node.parent.call_type?
 
           if node.receiver.call_type?

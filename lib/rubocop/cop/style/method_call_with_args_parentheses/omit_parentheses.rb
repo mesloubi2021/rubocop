@@ -7,6 +7,8 @@ module RuboCop
         # Style omit_parentheses
         # rubocop:disable Metrics/ModuleLength, Metrics/CyclomaticComplexity
         module OmitParentheses
+          include RangeHelp
+
           TRAILING_WHITESPACE_REGEX = /\s+\Z/.freeze
           OMIT_MSG = 'Omit parentheses for method calls with arguments.'
           private_constant :OMIT_MSG
@@ -18,6 +20,7 @@ module RuboCop
             return if inside_endless_method_def?(node)
             return if require_parentheses_for_hash_value_omission?(node)
             return if syntax_like_method_call?(node)
+            return if method_call_before_constant_resolution?(node)
             return if super_call_without_arguments?(node)
             return if legitimate_call_with_parentheses?(node)
             return if allowed_camel_case_method_call?(node)
@@ -29,10 +32,13 @@ module RuboCop
           end
 
           def autocorrect(corrector, node)
+            range = args_begin(node)
             if parentheses_at_the_end_of_multiline_call?(node)
-              corrector.replace(args_begin(node), ' \\')
+              # Whitespace after line continuation (`\ `) is a syntax error
+              with_whitespace = range_with_surrounding_space(range, side: :right, newlines: false)
+              corrector.replace(with_whitespace, ' \\')
             else
-              corrector.replace(args_begin(node), ' ')
+              corrector.replace(range, ' ')
             end
             corrector.remove(node.loc.end)
           end
@@ -46,11 +52,11 @@ module RuboCop
             node.each_ancestor(:def, :defs).any?(&:endless?) && node.arguments.any?
           end
 
-          def require_parentheses_for_hash_value_omission?(node)
+          def require_parentheses_for_hash_value_omission?(node) # rubocop:disable Metrics/PerceivedComplexity
             return false unless (last_argument = node.last_argument)
             return false if !last_argument.hash_type? || !last_argument.pairs.last&.value_omission?
 
-            node.parent&.conditional? || !last_expression?(node)
+            node.parent&.conditional? || node.parent&.single_line? || !last_expression?(node)
           end
 
           # Require hash value omission be enclosed in parentheses to prevent the following issue:
@@ -61,6 +67,10 @@ module RuboCop
 
           def syntax_like_method_call?(node)
             node.implicit_call? || node.operator_method?
+          end
+
+          def method_call_before_constant_resolution?(node)
+            node.parent&.const_type?
           end
 
           def super_call_without_arguments?(node)
@@ -86,6 +96,7 @@ module RuboCop
 
           def legitimate_call_with_parentheses?(node) # rubocop:disable Metrics/PerceivedComplexity
             call_in_literals?(node) ||
+              node.parent&.when_type? ||
               call_with_ambiguous_arguments?(node) ||
               call_in_logical_operators?(node) ||
               call_in_optional_arguments?(node) ||
@@ -100,9 +111,7 @@ module RuboCop
             parent = node.parent&.block_type? ? node.parent.parent : node.parent
             return false unless parent
 
-            parent.pair_type? ||
-              parent.array_type? ||
-              parent.range_type? ||
+            parent.type?(:pair, :array, :range) ||
               splat?(parent) ||
               ternary_if?(parent)
           end
@@ -117,38 +126,48 @@ module RuboCop
           end
 
           def call_in_optional_arguments?(node)
-            node.parent && (node.parent.optarg_type? || node.parent.kwoptarg_type?)
+            node.parent&.type?(:optarg, :kwoptarg)
           end
 
           def call_in_single_line_inheritance?(node)
-            node.parent&.class_type? && node.parent&.single_line?
+            node.parent&.class_type? && node.parent.single_line?
           end
 
-          def call_with_ambiguous_arguments?(node) # rubocop:disable Metrics/PerceivedComplexity
+          # rubocop:disable Metrics/PerceivedComplexity
+          def call_with_ambiguous_arguments?(node)
             call_with_braced_block?(node) ||
+              call_in_argument_with_block?(node) ||
               call_as_argument_or_chain?(node) ||
               call_in_match_pattern?(node) ||
               hash_literal_in_arguments?(node) ||
+              ambiguous_range_argument?(node) ||
               node.descendants.any? do |n|
-                n.forwarded_args_type? || ambiguous_literal?(n) || logical_operator?(n) ||
-                  call_with_braced_block?(n)
+                n.type?(:forwarded_args, :any_block) ||
+                  ambiguous_literal?(n) || logical_operator?(n)
               end
           end
+          # rubocop:enable Metrics/PerceivedComplexity
 
           def call_with_braced_block?(node)
-            (node.send_type? || node.super_type?) && node.block_node&.braces?
+            node.type?(:call, :super) && node.block_node&.braces?
+          end
+
+          def call_in_argument_with_block?(node)
+            parent = node.parent&.block_type? && node.parent.parent
+            return false unless parent
+
+            parent.type?(:call, :super, :yield)
           end
 
           def call_as_argument_or_chain?(node)
-            node.parent &&
-              ((node.parent.send_type? && !assigned_before?(node.parent, node)) ||
-              node.parent.csend_type? || node.parent.super_type? || node.parent.yield_type?)
+            node.parent&.type?(:call, :super, :yield) &&
+              !assigned_before?(node.parent, node)
           end
 
           def call_in_match_pattern?(node)
             return false unless (parent = node.parent)
 
-            parent.match_pattern_type? || parent.match_pattern_p_type?
+            parent.type?(:match_pattern, :match_pattern_p)
           end
 
           def hash_literal_in_arguments?(node)
@@ -156,6 +175,13 @@ module RuboCop
               hash_literal?(n) ||
                 (n.send_type? && node.descendants.any? { |descendant| hash_literal?(descendant) })
             end
+          end
+
+          def ambiguous_range_argument?(node)
+            return true if (first_arg = node.first_argument)&.range_type? && first_arg.begin.nil?
+            return true if (last_arg = node.last_argument)&.range_type? && last_arg.end.nil?
+
+            false
           end
 
           def allowed_multiline_call_with_parentheses?(node)
@@ -176,7 +202,7 @@ module RuboCop
           end
 
           def splat?(node)
-            node.splat_type? || node.kwsplat_type? || node.block_pass_type?
+            node.type?(:splat, :kwsplat, :block_pass)
           end
 
           def ternary_if?(node)
@@ -184,7 +210,7 @@ module RuboCop
           end
 
           def logical_operator?(node)
-            (node.and_type? || node.or_type?) && node.logical_operator?
+            node.operator_keyword? && node.logical_operator?
           end
 
           def hash_literal?(node)
@@ -197,7 +223,7 @@ module RuboCop
 
           def unary_literal?(node)
             (node.numeric_type? && node.sign?) ||
-              (node.parent&.send_type? && node.parent&.unary_operation?)
+              (node.parent&.send_type? && node.parent.unary_operation?)
           end
 
           def assigned_before?(node, target)

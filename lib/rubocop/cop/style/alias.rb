@@ -41,6 +41,7 @@ module RuboCop
         def on_send(node)
           return unless node.command?(:alias_method)
           return unless style == :prefer_alias && alias_keyword_possible?(node)
+          return unless node.arguments.count == 2
 
           msg = format(MSG_ALIAS_METHOD, current: lexical_scope_type(node))
           add_offense(node.loc.selector, message: msg) do |corrector|
@@ -79,7 +80,7 @@ module RuboCop
         def alias_method_possible?(node)
           scope_type(node) != :instance_eval &&
             node.children.none?(&:gvar_type?) &&
-            node&.parent&.type != :def
+            node.each_ancestor(:def).none?
         end
 
         def add_offense_for_args(node, &block)

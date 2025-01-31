@@ -13,6 +13,17 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
       RUBY
     end
 
+    it 'registers and corrects an offense when using safe navigation `reject` call and comparing with `lvar == :sym`' do
+      expect_offense(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}&.reject { |k, v| k == :bar }
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(:bar)` instead.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}&.except(:bar)
+      RUBY
+    end
+
     it 'registers and corrects an offense when using `reject` and comparing with `:sym == lvar`' do
       expect_offense(<<~RUBY)
         {foo: 1, bar: 2, baz: 3}.reject { |k, v| :bar == k }
@@ -85,17 +96,24 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| k.in?(%i[foo bar]) }
         RUBY
       end
+
+      it 'does not register offenses when using safe navigation `reject` and calling `key.in?` method with symbol array' do
+        expect_no_offenses(<<~RUBY)
+          {foo: 1, bar: 2, baz: 3}&.reject { |k, v| k.in?(%i[foo bar]) }
+        RUBY
+      end
+
+      it 'does not register offenses when using `reject` and calling `in?` method with key' do
+        expect_no_offenses(<<~RUBY)
+          {foo: 1, bar: 2, baz: 3}.reject { |k, v| %i[foo bar].in?(k) }
+        RUBY
+      end
     end
 
     context 'using `include?`' do
-      it 'registers and corrects an offense when using `reject` and calling `include?` method with symbol array' do
-        expect_offense(<<~RUBY)
+      it 'does not register an offense when using `reject` and calling `!include?` method with symbol array' do
+        expect_no_offenses(<<~RUBY)
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| !%i[foo bar].include?(k) }
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(:foo, :bar)` instead.
-        RUBY
-
-        expect_correction(<<~RUBY)
-          {foo: 1, bar: 2, baz: 3}.except(:foo, :bar)
         RUBY
       end
 
@@ -143,31 +161,20 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
         RUBY
       end
 
-      it 'registers and corrects an offense when using `reject` and calling `include?` method with variable' do
-        expect_offense(<<~RUBY)
+      it 'does not register an offense when using `reject` and calling `!include?` method with variable' do
+        expect_no_offenses(<<~RUBY)
           array = [:foo, :bar]
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| !array.include?(k) }
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(*array)` instead.
-        RUBY
-
-        expect_correction(<<~RUBY)
-          array = [:foo, :bar]
-          {foo: 1, bar: 2, baz: 3}.except(*array)
         RUBY
       end
 
-      it 'registers and corrects an offense when using `reject` and calling `include?` method with method call' do
-        expect_offense(<<~RUBY)
+      it 'does not register an offense when using `reject` and calling `!include?` method with method call' do
+        expect_no_offenses(<<~RUBY)
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| !array.include?(k) }
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(*array)` instead.
-        RUBY
-
-        expect_correction(<<~RUBY)
-          {foo: 1, bar: 2, baz: 3}.except(*array)
         RUBY
       end
 
-      it 'does not register an offense when using `reject` and calling `include?` method with symbol array and second block value' do
+      it 'does not register an offense when using `reject` and calling `!include?` method with symbol array and second block value' do
         expect_no_offenses(<<~RUBY)
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| ![1, 2].include?(v) }
         RUBY
@@ -184,12 +191,30 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| !k.include?('oo') }
         RUBY
       end
+
+      it 'does not register an offense when using `reject` with `!include?` with an inclusive range receiver' do
+        expect_no_offenses(<<~RUBY)
+          { foo: 1, bar: 2, baz: 3 }.reject { |k, v| (:baa..:bbb).include?(k) }
+        RUBY
+      end
+
+      it 'does not register an offense when using `reject` with `!include?` with an exclusive range receiver' do
+        expect_no_offenses(<<~RUBY)
+          { foo: 1, bar: 2, baz: 3 }.reject { |k, v| (:baa...:bbb).include?(k) }
+        RUBY
+      end
     end
 
     context 'using `exclude?`' do
       it 'does not register offenses when using `reject` and calling `!exclude?` method with symbol array' do
         expect_no_offenses(<<~RUBY)
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| !%i[foo bar].exclude?(k) }
+        RUBY
+      end
+
+      it 'does not register offenses when using safe navigation `reject` and calling `!exclude?` method with symbol array' do
+        expect_no_offenses(<<~RUBY)
+          {foo: 1, bar: 2, baz: 3}&.reject { |k, v| !%i[foo bar].exclude?(k) }
         RUBY
       end
 
@@ -212,6 +237,24 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
       RUBY
     end
 
+    it 'does not register an offense when using `select` and other than comparison by string and symbol using `!=`' do
+      expect_no_offenses(<<~RUBY)
+        hash.select { |k, v| k != 0.0 }
+      RUBY
+    end
+
+    it 'does not register an offense when using `select` and other than comparison by string and symbol using `==` with bang' do
+      expect_no_offenses(<<~RUBY)
+        hash.select { |k, v| !(k == 0.0) }
+      RUBY
+    end
+
+    it 'does not register an offense when using `reject` and other than comparison by string and symbol using `!=` with bang' do
+      expect_no_offenses(<<~RUBY)
+        hash.reject { |k, v| !(k != 0.0) }
+      RUBY
+    end
+
     it 'does not register an offense when using `delete_if` and comparing with `lvar == :sym`' do
       expect_no_offenses(<<~RUBY)
         {foo: 1, bar: 2, baz: 3}.delete_if { |k, v| k == :bar }
@@ -227,6 +270,18 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
     it 'does not register an offense when comparing with hash value' do
       expect_no_offenses(<<~RUBY)
         {foo: 1, bar: 2, baz: 3}.reject { |k, v| v.eql? :bar }
+      RUBY
+    end
+
+    it 'does not register an offense when using more than two block arguments' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.reject { |k, v, o| k == :bar }
+      RUBY
+    end
+
+    it 'does not register an offense when calling `include?` method without a param' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.reject { |k, v| %i[foo bar].include? }
       RUBY
     end
 
@@ -327,6 +382,17 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           RUBY
         end
 
+        it 'registers and corrects an offense when using safe navigation `reject` and calling `key.in?` method with symbol array' do
+          expect_offense(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}&.reject { |k, v| k.in?(%i[foo bar]) }
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(:foo, :bar)` instead.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}&.except(:foo, :bar)
+          RUBY
+        end
+
         it 'registers and corrects an offense when using `select` and calling `!key.in?` method with symbol array' do
           expect_offense(<<~RUBY)
             {foo: 1, bar: 2, baz: 3}.select { |k, v| !k.in?(%i[foo bar]) }
@@ -395,22 +461,41 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           RUBY
         end
 
+        it 'does not register an offense when using `reject` and calling `!key.in?` method with symbol array' do
+          expect_no_offenses(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}.reject { |k, v| !k.in?(%i[foo bar]) }
+          RUBY
+        end
+
+        it 'does not register an offense when using `reject` and calling `in?` method with key' do
+          expect_no_offenses(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}.reject { |k, v| %i[foo bar].in?(k) }
+          RUBY
+        end
+
         it 'does not register an offense when using `reject` and calling `in?` method with symbol array and second block value' do
           expect_no_offenses(<<~RUBY)
             {foo: 1, bar: 2, baz: 3}.reject { |k, v| v.in?([1, 2]) }
           RUBY
         end
+
+        it 'does not register an offense when using `reject` with `!in?` with an inclusive range argument' do
+          expect_no_offenses(<<~RUBY)
+            { foo: 1, bar: 2, baz: 3 }.reject{ |k, v| k.in?(:baa..:bbb) }
+          RUBY
+        end
+
+        it 'does not register an offense when using `reject` with `!in?` with an exclusive range argument' do
+          expect_no_offenses(<<~RUBY)
+            { foo: 1, bar: 2, baz: 3 }.reject{ |k, v| k.in?(:baa...:bbb) }
+          RUBY
+        end
       end
 
       context 'using `include?`' do
-        it 'registers and corrects an offense when using `reject` and calling `include?` method with symbol array' do
-          expect_offense(<<~RUBY)
+        it 'does not register an offense when using `reject` and calling `!include?` method with symbol array' do
+          expect_no_offenses(<<~RUBY)
             {foo: 1, bar: 2, baz: 3}.reject { |k, v| !%i[foo bar].include?(k) }
-                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(:foo, :bar)` instead.
-          RUBY
-
-          expect_correction(<<~RUBY)
-            {foo: 1, bar: 2, baz: 3}.except(:foo, :bar)
           RUBY
         end
 
@@ -458,27 +543,27 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           RUBY
         end
 
-        it 'registers and corrects an offense when using `reject` and calling `include?` method with variable' do
-          expect_offense(<<~RUBY)
+        it 'does not register an offense when using `reject` and calling `!include?` method with variable' do
+          expect_no_offenses(<<~RUBY)
             array = %i[foo bar]
             {foo: 1, bar: 2, baz: 3}.reject { |k, v| !array.include?(k) }
-                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(*array)` instead.
-          RUBY
-
-          expect_correction(<<~RUBY)
-            array = %i[foo bar]
-            {foo: 1, bar: 2, baz: 3}.except(*array)
           RUBY
         end
 
-        it 'registers and corrects an offense when using `reject` and calling `include?` method with method call' do
-          expect_offense(<<~RUBY)
+        it 'does not register an offense when using `reject` and calling `!include?` method with method call' do
+          expect_no_offenses(<<~RUBY)
             {foo: 1, bar: 2, baz: 3}.reject { |k, v| !array.include?(k) }
-                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(*array)` instead.
+          RUBY
+        end
+
+        it 'registers an offense when using `reject` and `include?`' do
+          expect_offense(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}.reject { |k, v| [:bar].include?(k) }
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(:bar)` instead.
           RUBY
 
           expect_correction(<<~RUBY)
-            {foo: 1, bar: 2, baz: 3}.except(*array)
+            {foo: 1, bar: 2, baz: 3}.except(:bar)
           RUBY
         end
 
@@ -507,6 +592,17 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           RUBY
         end
 
+        it 'registers and corrects an offense when using safe navigation `reject` and calling `!exclude?` method with symbol array' do
+          expect_offense(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}&.reject { |k, v| !%i[foo bar].exclude?(k) }
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `except(:foo, :bar)` instead.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}&.except(:foo, :bar)
+          RUBY
+        end
+
         it 'registers and corrects an offense when using `select` and calling `exclude?` method with symbol array' do
           expect_offense(<<~RUBY)
             {foo: 1, bar: 2, baz: 3}.select { |k, v| %i[foo bar].exclude?(k) }
@@ -515,6 +611,12 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
 
           expect_correction(<<~RUBY)
             {foo: 1, bar: 2, baz: 3}.except(:foo, :bar)
+          RUBY
+        end
+
+        it 'does not register an offense when using `select` and calling `!exclude?` method with symbol array' do
+          expect_no_offenses(<<~RUBY)
+            {foo: 1, bar: 2, baz: 3}.select { |k, v| !%i[foo bar].exclude?(k) }
           RUBY
         end
 
@@ -600,6 +702,24 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
         RUBY
       end
 
+      it 'does not register an offense when using `select` and other than comparison by string and symbol using `!=`' do
+        expect_no_offenses(<<~RUBY)
+          hash.select { |k, v| k != 0.0 }
+        RUBY
+      end
+
+      it 'does not register an offense when using `select` and other than comparison by string and symbol using `==` with bang' do
+        expect_no_offenses(<<~RUBY)
+          hash.select { |k, v| !(k == 0.0) }
+        RUBY
+      end
+
+      it 'does not register an offense when using `reject` and other than comparison by string and symbol using `!=` with bang' do
+        expect_no_offenses(<<~RUBY)
+          hash.reject { |k, v| !(k != 0.0) }
+        RUBY
+      end
+
       it 'does not register an offense when using `delete_if` and comparing with `lvar == :sym`' do
         expect_no_offenses(<<~RUBY)
           {foo: 1, bar: 2, baz: 3}.delete_if { |k, v| k == :bar }
@@ -617,10 +737,64 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
           {foo: 1, bar: 2, baz: 3}.reject { |k, v| v.eql? :bar }
         RUBY
       end
+
+      it 'does not register an offense when using more than two block arguments' do
+        expect_no_offenses(<<~RUBY)
+          {foo: 1, bar: 2, baz: 3}.reject { |k, v, z| k == :bar }
+        RUBY
+      end
+
+      it 'does not register an offense when calling `include?` method without a param' do
+        expect_no_offenses(<<~RUBY)
+          {foo: 1, bar: 2, baz: 3}.reject { |k, v| %i[foo bar].include? }
+        RUBY
+      end
+    end
+
+    it 'does not register an offense when using `reject` and comparing with `lvar != :key`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.reject { |k, v| k != :bar }
+      RUBY
+    end
+
+    it 'does not register an offense when using `reject` and comparing with `:key != lvar`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.reject { |k, v| :bar != key }
+      RUBY
+    end
+
+    it 'does not register an offense when using `select` and comparing with `lvar == :key`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.select { |k, v| k == :bar }
+      RUBY
+    end
+
+    it 'does not register an offense when using `select` and comparing with `:key == lvar`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.select { |k, v| :bar == key }
+      RUBY
+    end
+
+    it 'does not register an offense when not using key block argument`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.reject { |k, v| do_something != :bar }
+      RUBY
+    end
+
+    it 'does not register an offense when not using block`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.reject
+      RUBY
+    end
+
+    it 'does not register an offense when using `Hash#except`' do
+      expect_no_offenses(<<~RUBY)
+        {foo: 1, bar: 2, baz: 3}.except(:bar)
+      RUBY
     end
   end
 
-  context 'Ruby 2.7 or lower', :ruby27 do
+  context 'Ruby 2.7 or lower', :ruby27, unsupported_on: :prism do
     it 'does not register an offense when using `reject` and comparing with `lvar == :key`' do
       expect_no_offenses(<<~RUBY)
         {foo: 1, bar: 2, baz: 3}.reject { |k, v| k == :bar }
@@ -644,53 +818,5 @@ RSpec.describe RuboCop::Cop::Style::HashExcept, :config do
         {foo: 1, bar: 2, baz: 3}.select { |k, v| :bar != k }
       RUBY
     end
-  end
-
-  it 'does not register an offense when using `reject` and comparing with `lvar != :key`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.reject { |k, v| k != :bar }
-    RUBY
-  end
-
-  it 'does not register an offense when using `reject` and comparing with `:key != lvar`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.reject { |k, v| :bar != key }
-    RUBY
-  end
-
-  it 'does not register an offense when using `select` and comparing with `lvar == :key`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.select { |k, v| k == :bar }
-    RUBY
-  end
-
-  it 'does not register an offense when using `select` and comparing with `:key == lvar`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.select { |k, v| :bar == key }
-    RUBY
-  end
-
-  it 'does not register an offense when not using key block argument`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.reject { |k, v| do_something != :bar }
-    RUBY
-  end
-
-  it 'does not register an offense when using `reject` and `include?`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.reject { |k, v| [:bar].include?(k) }
-    RUBY
-  end
-
-  it 'does not register an offense when not using block`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.reject
-    RUBY
-  end
-
-  it 'does not register an offense when using `Hash#except`' do
-    expect_no_offenses(<<~RUBY)
-      {foo: 1, bar: 2, baz: 3}.except(:bar)
-    RUBY
   end
 end

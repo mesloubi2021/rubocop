@@ -20,7 +20,9 @@ module RuboCop
       # This `Layout/EndAlignment` cop aligns with keywords (e.g. `if`, `while`, `case`)
       # by default. On the other hand, `Layout/BeginEndAlignment` cop aligns with
       # `EnforcedStyleAlignWith: start_of_line` by default due to `||= begin` tends
-      # to align with the start of the line. These style can be configured by each cop.
+      # to align with the start of the line. `Layout/DefEndAlignment` cop also aligns with
+      # `EnforcedStyleAlignWith: start_of_line` by default.
+      # These style can be configured by each cop.
       #
       # @example EnforcedStyleAlignWith: keyword (default)
       #   # bad
@@ -83,7 +85,11 @@ module RuboCop
         end
 
         def on_sclass(node)
-          check_other_alignment(node)
+          if node.parent&.assignment?
+            check_asgn_alignment(node.parent, node)
+          else
+            check_other_alignment(node)
+          end
         end
 
         def on_module(node)
@@ -163,14 +169,20 @@ module RuboCop
           when :keyword
             node
           when :variable
-            alignment_node_for_variable_style(node)
+            align_to = alignment_node_for_variable_style(node)
+
+            while (parent = align_to.parent) && parent.send_type? && same_line?(align_to, parent)
+              align_to = parent
+            end
+
+            align_to
           else
             start_line_range(node)
           end
         end
 
         def alignment_node_for_variable_style(node)
-          if (node.case_type? || node.case_match_type?) && node.argument? &&
+          if node.type?(:case, :case_match) && node.argument? &&
              same_line?(node, node.parent)
             return node.parent
           end

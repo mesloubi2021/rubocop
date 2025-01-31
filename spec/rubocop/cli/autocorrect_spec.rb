@@ -206,6 +206,27 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'does not correct `AllowInMultilineConditions: true` of `Style/ParenthesesAroundCondition` with `Style/RedundantParentheses`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/ParenthesesAroundCondition:
+        AllowInMultilineConditions: true
+    YAML
+    source = <<~RUBY
+      if (foo &&
+          bar)
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run(['--autocorrect', '--only',
+                    'Style/ParenthesesAroundCondition,' \
+                    'Style/RedundantParentheses'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      if (foo &&
+          bar)
+      end
+    RUBY
+  end
+
   it 'corrects `EnforcedShorthandSyntax: always` of `Style/HashSyntax` with `Style/RedundantParentheses` when using Ruby 3.1' do
     create_file('.rubocop.yml', <<~YAML)
       AllCops:
@@ -277,6 +298,24 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       foo do
       bar
       end
+    RUBY
+  end
+
+  it 'corrects `EnforcedStyle: semantic` of `Style/BlockDelimiters` with `Layout/SpaceInsideBlockBraces`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/BlockDelimiters:
+        EnforcedStyle: semantic
+    YAML
+    source = <<~RUBY
+      File.open('a', 'w') { }
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect-all',
+                     '--only', 'Style/BlockDelimiters,Layout/SpaceInsideBlockBraces'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      File.open('a', 'w') do  end
     RUBY
   end
 
@@ -436,6 +475,36 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `EnforcedStyle: omit_parentheses` of `Style/MethodCallWithArgsParentheses` with ' \
+     '`Style/SuperWithArgsParentheses`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/MethodCallWithArgsParentheses:
+        EnforcedStyle: omit_parentheses
+    YAML
+    create_file('example.rb', <<~RUBY)
+      class Derived < Base
+        def do_something(arg)
+         super(arg)
+        end
+      end
+    RUBY
+    expect(
+      cli.run(
+        [
+          '--autocorrect',
+          '--only', 'Style/MethodCallWithArgsParentheses,Style/SuperWithArgsParentheses'
+        ]
+      )
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      class Derived < Base
+        def do_something(arg)
+         super(arg)
+        end
+      end
+    RUBY
+  end
+
   it 'corrects `Style/IfUnlessModifier` with `Style/SoleNestedConditional`' do
     source = <<~RUBY
       def foo
@@ -516,6 +585,76 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(File.read('example.rb')).to eq(<<~RUBY)
       def foo(options, &)
         bar(**options, &)
+      end
+    RUBY
+  end
+
+  it 'corrects `Naming/BlockForwarding` with `Style/ArgumentsForwarding`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.2
+    YAML
+    source = <<~RUBY
+      def some_method(form, **options, &block)
+        render 'template', form: form, **options, &block
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect',
+                     '--only', 'Naming/BlockForwarding,Style/ArgumentsForwarding'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def some_method(form, **, &)
+        render('template', form: form, **, &)
+      end
+    RUBY
+  end
+
+  it 'corrects `Naming/BlockForwarding` with `Style/ExplicitBlockArgument`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.2
+    YAML
+    source = <<~RUBY
+      def foo(&block)
+        bar do |baz|
+          yield(baz)
+        end
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect',
+                     '--only', 'Naming/BlockForwarding,Style/ExplicitBlockArgument'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def foo(&)
+        bar(&)
+      end
+    RUBY
+  end
+
+  it 'corrects `EnforcedStyle: explicit` of `Naming/BlockForwarding` with `Style/ArgumentsForwarding`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.1
+      Naming/BlockForwarding:
+        EnforcedStyle: explicit
+    YAML
+    source = <<~RUBY
+      def some_method(&block)
+        render &block
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect',
+                     '--only', 'Naming/BlockForwarding,Style/ArgumentsForwarding'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def some_method(&block)
+        render &block
       end
     RUBY
   end
@@ -778,7 +917,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(
       cli.run(['-a', '--only', 'Layout/SpaceAroundKeyword,Layout/SpaceInsideRangeLiteral'])
     ).to eq(0)
-    expect($stdout.string.include?('no offenses detected')).to be(true)
+    expect($stdout.string).to include('no offenses detected')
     expect(File.read('example.rb')).to eq(source)
   end
 
@@ -980,7 +1119,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     create_file('example.rb', source)
     create_file('.rubocop.yml', <<~YAML)
       Layout/DefEndAlignment:
-        AutoCorrect: true
+        AutoCorrect: always
     YAML
     expect(cli.run(['--autocorrect-all'])).to eq(0)
     corrected = <<~RUBY
@@ -1266,7 +1405,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     uncorrected = $stdout.string.split($RS).select do |line|
       line.include?('example.rb:') && !line.include?('[Corrected]')
     end
-    expect(uncorrected.empty?).to be(true) # Hence exit code 0.
+    expect(uncorrected).to be_empty # Hence exit code 0.
   end
 
   it 'corrects only IndentationWidth without crashing' do
@@ -1304,7 +1443,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
         Enabled: false
     YAML
     expect(cli.run(['--autocorrect-all'])).to eq(0)
-    expect($stdout.string.include?('no offenses detected')).to be(true)
+    expect($stdout.string).to include('no offenses detected')
     expect(File.read('example.rb')).to eq("#{source}\n")
   end
 
@@ -1493,7 +1632,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     uncorrected = $stdout.string.split($RS).select do |line|
       line.include?('example.rb:') && !line.include?('[Corrected]')
     end
-    expect(uncorrected.empty?).to be(false) # Hence exit code 1.
+    expect(uncorrected).not_to be_empty # Hence exit code 1.
   end
 
   it 'can correct single line methods' do
@@ -1526,14 +1665,14 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
     expect($stdout.string).to eq(<<~RESULT)
 
-      4   Layout/TrailingWhitespace
-      3   Style/Semicolon
-      2   Layout/IndentationConsistency
-      2   Style/SingleLineMethods
-      1   Layout/DefEndAlignment
-      1   Layout/EmptyLineBetweenDefs
-      1   Style/DefWithParentheses
-      1   Style/TrailingBodyOnMethodDefinition
+      4   Layout/TrailingWhitespace [Safe Correctable]
+      3   Style/Semicolon [Safe Correctable]
+      2   Layout/IndentationConsistency [Safe Correctable]
+      2   Style/SingleLineMethods [Safe Correctable]
+      1   Layout/DefEndAlignment [Safe Correctable]
+      1   Layout/EmptyLineBetweenDefs [Safe Correctable]
+      1   Style/DefWithParentheses [Safe Correctable]
+      1   Style/TrailingBodyOnMethodDefinition [Safe Correctable]
       --
       15  Total in 1 files
 
@@ -1543,7 +1682,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
   # In this example, the autocorrection (changing "fail" to "raise")
   # creates a new problem (alignment of parameters), which is also
   # corrected automatically.
-  it 'can correct a problems and the problem it creates' do
+  it 'can correct a problem and the problem it creates' do
     create_file('example.rb', <<~RUBY)
       fail NotImplementedError,
            'Method should be overridden in child classes'
@@ -1640,8 +1779,8 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect($stdout.string)
       .to eq(<<~RESULT)
 
-        4  Layout/SpaceAfterComma
-        2  Style/WordArray
+        4  Layout/SpaceAfterComma [Safe Correctable]
+        2  Style/WordArray [Safe Correctable]
         --
         6  Total in 1 files
 
@@ -1728,7 +1867,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       {}
     RUBY
     expect($stdout.string).to eq(<<~RESULT)
-      #{abs('example.rb')}:1:1: C: [Corrected] Style/EmptyLiteral: Use hash literal `{}` instead of `Hash.new`.
+      #{abs('example.rb')}:1:1: C: [Corrected] Style/EmptyLiteral: Use hash literal `{}` instead of `Hash.new()`.
       #{abs('example.rb')}:1:9: C: [Corrected] Style/MethodCallWithoutArgsParentheses: Do not use parentheses for method calls with no arguments.
     RESULT
   end
@@ -1772,7 +1911,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       AllCops:
         TargetRubyVersion: 2.7
       Style/Semicolon:
-        AutoCorrect: false
+        AutoCorrect: disabled
     YAML
     create_file('example.rb', src)
     exit_status = cli.run(
@@ -1845,7 +1984,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     create_file('example.rb', 'puts "Hello", 123456')
     create_file('.rubocop.yml', <<~YAML)
       Style/StringLiterals:
-        AutoCorrect: false
+        AutoCorrect: disabled
     YAML
     expect(cli.run(%w[--autocorrect-all])).to eq(1)
     expect($stderr.string).to eq('')
@@ -1993,7 +2132,19 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
-  it 'corrects Lint/ParenthesesAsGroupedExpression and offenses and ' \
+  it 'corrects `Lint/AmbiguousRange` offenses and accepts Style/RedundantParentheses' do
+    create_file('example.rb', <<~RUBY)
+      x...(y || z)
+    RUBY
+    expect(
+      cli.run(['--autocorrect-all', '--only', 'Lint/AmbiguousRange,Style/RedundantParentheses'])
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      x...(y || z)
+    RUBY
+  end
+
+  it 'corrects Lint/ParenthesesAsGroupedExpression offenses and ' \
      'accepts Style/RedundantParentheses' do
     create_file('example.rb', <<~RUBY)
       do_something (argument)
@@ -2033,7 +2184,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     special_for_inner_method_call
     special_for_inner_method_call_in_parentheses
   ].each do |style|
-    it 'does not crash `Layout/ArgumentAlignment` and offenses and accepts `Layout/FirstArgumentIndentation` ' \
+    it 'does not crash `Layout/ArgumentAlignment` and accepts `Layout/FirstArgumentIndentation` ' \
        'when specifying `EnforcedStyle: with_fixed_indentation` of `Layout/ArgumentAlignment` ' \
        "and `EnforcedStyle: #{style}` of `Layout/FirstArgumentIndentation`" do
       create_file('example.rb', <<~RUBY)
@@ -2341,7 +2492,65 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
-  it 'does not crash Lint/SafeNavigationWithEmpty and offenses and accepts Style/SafeNavigation ' \
+  it 'corrects when specifying `EnforcedStyle: with_fixed_indentation` of `Layout/ArrayAlignment` and ' \
+     '`Layout/FirstArrayElementIndentation`' do
+    create_file('example.rb', <<~RUBY)
+      puts([
+        'foo',
+        'bar'
+      ])
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/ArrayAlignment:
+        EnforcedStyle: with_fixed_indentation
+    YAML
+
+    expect(
+      cli.run(
+        ['--autocorrect', '--only', 'Layout/ArrayAlignment,Layout/FirstArrayElementIndentation']
+      )
+    ).to eq(0)
+    expect($stderr.string).to eq('')
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      puts([
+        'foo',
+        'bar'
+      ])
+    RUBY
+  end
+
+  it 'corrects the indentation of array elements when specifying `EnforcedStyle: with_fixed_indentation` of ' \
+     '`Layout/ArrayAlignment` and `Layout/FirstArrayElementIndentation`' do
+    create_file('example.rb', <<~RUBY)
+      foo bar: [
+            'foo',
+            'bar'
+      ],
+      baz: 'baz'
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/ArrayAlignment:
+        EnforcedStyle: with_fixed_indentation
+    YAML
+
+    expect(
+      cli.run(
+        ['--autocorrect', '--only', 'Layout/ArrayAlignment,Layout/FirstArrayElementIndentation']
+      )
+    ).to eq(0)
+    expect($stderr.string).to eq('')
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      foo bar: [
+        'foo',
+        'bar'
+      ],
+      baz: 'baz'
+    RUBY
+  end
+
+  it 'does not crash Lint/SafeNavigationWithEmpty and accepts Style/SafeNavigation ' \
      'when checking `foo&.empty?` in a conditional' do
     create_file('example.rb', <<~RUBY)
       do_something if ENV['VERSION'] && ENV['VERSION'].empty?
@@ -2684,6 +2893,51 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `Style/MapToHash` and `Layout/SingleLineBlockChain` offenses' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      obj.map { |i| foo(i) }.to_h
+         .bar
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/MapToHash,Layout/SingleLineBlockChain'])).to eq(0)
+
+    expect(source_file.read).to eq(<<~RUBY)
+      obj.to_h { |i| foo(i) }
+         .bar
+    RUBY
+  end
+
+  it 'corrects `Style/BlockDelimiters` with `EnforcedStyle: braces_for_chaining` and `Style/RedundantBegin` offenses' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/BlockDelimiters:
+        EnforcedStyle: braces_for_chaining
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      foo.map do |v|
+        begin
+          v.call
+        rescue StandardError
+          baz
+        end
+      end.compact
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/BlockDelimiters,Style/RedundantBegin'])).to eq(0)
+
+    expect(source_file.read).to eq(<<~RUBY)
+      foo.map { |v|
+        begin
+          v.call
+        rescue StandardError
+          baz
+        end
+      }.compact
+    RUBY
+  end
+
   it 'does not crash when using `Layout/CaseIndentation` and `Layout/ElseAlignment`' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
@@ -2700,7 +2954,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     create_file('.rubocop.yml', <<~YAML)
       Layout/BeginEndAlignment:
         EnforcedStyleAlignWith: start_of_line
-        AutoCorrect: true
+        AutoCorrect: always
 
       Layout/CaseIndentation:
         EnforcedStyle: end
@@ -2873,6 +3127,21 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'does not cause an infinite loop error for `Style/MultilineTernaryOperator`' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      do_something(arg
+                     .foo ? bar : baz)
+    RUBY
+
+    status = cli.run(%w[--autocorrect-all --only Style/MultilineTernaryOperator])
+    expect(status).to eq(0)
+    expect(source_file.read).to eq(<<~RUBY)
+      do_something(arg
+                     .foo ? bar : baz)
+    RUBY
+  end
+
   it 'respects `Lint/ConstantResolution` over `Style/RedundantConstantBase` when enabling`Lint/ConstantResolution`' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
@@ -2948,42 +3217,380 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
-  it 'corrects `Style/AccessModifierDeclarations` offenses when multiple groupable access modifiers are defined' do
+  it 'corrects `Lint/ImplicitStringConcatenation` with `Lint/TripleQuotes` offenses' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
-      class Test
-        private def foo; end
-        private def bar; end
-        def baz; end
-      end
+      """string"""
     RUBY
-    status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+    status = cli.run(%w[--autocorrect --only Lint/ImplicitStringConcatenation,Lint/TripleQuotes])
     expect($stdout.string).to eq(<<~RESULT)
       Inspecting 1 file
-      C
+      W
 
       Offenses:
 
-      example.rb:2:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
-        private def foo; end
-        ^^^^^^^
-      example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
-        private def bar; end
-        ^^^^^^^
+      example.rb:1:1: W: [Corrected] Lint/ImplicitStringConcatenation: Combine "" and "string" into a single string literal, rather than using implicit string concatenation.
+      """string"""
+      ^^^^^^^^^^
+      example.rb:1:1: W: [Corrected] Lint/TripleQuotes: Delimiting a string with multiple quotes has no effect, use a single quote instead.
+      """string"""
+      ^^^^^^^^^^^^
+      example.rb:1:3: W: [Corrected] Lint/ImplicitStringConcatenation: Combine "string" and "" into a single string literal, rather than using implicit string concatenation.
+      """string"""
+        ^^^^^^^^^^
 
-      1 file inspected, 2 offenses detected, 2 offenses corrected
+      1 file inspected, 3 offenses detected, 3 offenses corrected
     RESULT
     expect(status).to eq(0)
     expect(source_file.read).to eq(<<~RUBY)
-      class Test
-        def baz; end
-      private
-
-      def foo; end
-
-      def bar; end
-      end
+      "string"
     RUBY
+  end
+
+  context '`Style/AccessModifierDeclarations` offenses with multiple groupable access modifiers' do
+    it 'corrects multiple methods' do
+      source_file = Pathname('example.rb')
+      create_file(source_file, <<~RUBY)
+        class Test
+          private def foo; end
+          private def bar; end
+          def baz; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def bar; end
+          ^^^^^^^
+
+        1 file inspected, 2 offenses detected, 2 offenses corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          def baz; end
+        private
+
+        def foo; end
+
+        def bar; end
+        end
+      RUBY
+    end
+
+    it 'corrects when the first is a symbol list' do
+      source_file = Pathname('example.rb')
+      create_file(source_file, <<~RUBY)
+        class Test
+          private :bar, :baz
+          private def foo; end
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+
+        1 file inspected, 1 offense detected, 1 offense corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          private :bar, :baz
+          def quux; end
+        private
+
+        def foo; end
+        end
+      RUBY
+    end
+
+    it 'corrects when the first is an attr list' do
+      source_file = Pathname('example.rb')
+      create_file(source_file, <<~RUBY)
+        class Test
+          private attr_reader :bar, :baz
+          private def foo; end
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+
+        1 file inspected, 1 offense detected, 1 offense corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          private attr_reader :bar, :baz
+          def quux; end
+        private
+
+        def foo; end
+        end
+      RUBY
+    end
+
+    it 'corrects when the second is a symbol list' do
+      source_file = Pathname('example.rb')
+      create_file(source_file, <<~RUBY)
+        class Test
+          private def foo; end
+          private :bar, :baz
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+
+        1 file inspected, 1 offense detected, 1 offense corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          private :bar, :baz
+          def quux; end
+        private
+
+        def foo; end
+        end
+      RUBY
+    end
+
+    it 'corrects when the second is an attr list' do
+      source_file = Pathname('example.rb')
+      create_file(source_file, <<~RUBY)
+        class Test
+          private def foo; end
+          private attr_reader :bar, :baz
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+
+        1 file inspected, 1 offense detected, 1 offense corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          private attr_reader :bar, :baz
+          def quux; end
+        private
+
+        def foo; end
+        end
+      RUBY
+    end
+
+    it 'corrects when the first is a symbol list and `AllowModifiersOnSymbols` is false' do
+      source_file = Pathname('example.rb')
+      create_file('.rubocop.yml', <<~YAML)
+        Style/AccessModifierDeclarations:
+          AllowModifiersOnSymbols: false
+      YAML
+      create_file(source_file, <<~RUBY)
+        class Test
+          private :bar, :baz
+          private def foo; end
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private :bar, :baz
+          ^^^^^^^
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+
+        1 file inspected, 2 offenses detected, 1 offense corrected
+      RESULT
+      expect(status).to eq(1)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          private :bar, :baz
+          def quux; end
+        private
+
+        def foo; end
+        end
+      RUBY
+    end
+
+    it 'corrects a symbol list with defined methods and `AllowModifiersOnSymbols` is false' do
+      source_file = Pathname('example.rb')
+      create_file('.rubocop.yml', <<~YAML)
+        Style/AccessModifierDeclarations:
+          AllowModifiersOnSymbols: false
+      YAML
+      create_file(source_file, <<~RUBY)
+        class Test
+          private def foo; end
+          private :bar, :baz
+          def bar; end
+          def baz; end
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private :bar, :baz
+          ^^^^^^^
+
+        1 file inspected, 2 offenses detected, 2 offenses corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          def quux; end
+        private
+
+        def foo; end
+
+        def bar; end
+        def baz; end
+        end
+      RUBY
+    end
+
+    it 'corrects when the first is an attr list and `AllowModifiersOnAttrs` is false' do
+      source_file = Pathname('example.rb')
+      create_file('.rubocop.yml', <<~YAML)
+        Style/AccessModifierDeclarations:
+          AllowModifiersOnAttrs: false
+      YAML
+      create_file(source_file, <<~RUBY)
+        class Test
+          private attr_reader :bar, :baz
+          private def foo; end
+          def quux; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private attr_reader :bar, :baz
+          ^^^^^^^
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private def foo; end
+          ^^^^^^^
+
+        1 file inspected, 2 offenses detected, 2 offenses corrected
+      RESULT
+      expect(status).to eq(0)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          def quux; end
+        private
+
+        attr_reader :bar, :baz
+
+        def foo; end
+        end
+      RUBY
+    end
+
+    it 'corrects a mix of symbols and attrs when both are disallowed' do
+      source_file = Pathname('example.rb')
+      create_file('.rubocop.yml', <<~YAML)
+        Style/AccessModifierDeclarations:
+          AllowModifiersOnAttrs: false
+          AllowModifiersOnSymbols: false
+      YAML
+      create_file(source_file, <<~RUBY)
+        class Test
+          private :foo, :bar
+          private attr_reader :baz, :quux
+          def corge; end
+        end
+      RUBY
+      status = cli.run(%w[--autocorrect-all --only Style/AccessModifierDeclarations])
+      expect($stdout.string).to eq(<<~RESULT)
+        Inspecting 1 file
+        C
+
+        Offenses:
+
+        example.rb:2:3: C: Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private :foo, :bar
+          ^^^^^^^
+        example.rb:3:3: C: [Corrected] Style/AccessModifierDeclarations: private should not be inlined in method definitions.
+          private attr_reader :baz, :quux
+          ^^^^^^^
+
+        1 file inspected, 2 offenses detected, 1 offense corrected
+      RESULT
+      expect(status).to eq(1)
+      expect(source_file.read).to eq(<<~RUBY)
+        class Test
+          private :foo, :bar
+          def corge; end
+        private
+
+        attr_reader :baz, :quux
+        end
+      RUBY
+    end
   end
 
   it 'corrects `Layout/EndAlignment` when `end` is not aligned with beginning of a singleton class definition ' \
@@ -3036,6 +3643,32 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `Layout/EndAlignment` when `end` is not aligned with beginning of a singleton class assignment ' \
+     'and EnforcedStyleAlignWith is set to `variable` style' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      def thing
+        @thing ||= class << Object.new
+          end
+      end
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/EndAlignment:
+        EnforcedStyleAlignWith: variable
+    YAML
+
+    status = cli.run(%w[--autocorrect --only Layout/EndAlignment])
+    expect(status).to eq(0)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      def thing
+        @thing ||= class << Object.new
+        end
+      end
+    RUBY
+  end
+
   it 'corrects `Layout/EndAlignment` when `end` is not aligned with start of line ' \
      'and EnforcedStyleAlignWith is set to `start_of_line` style' do
     source_file = Pathname('example.rb')
@@ -3058,6 +3691,156 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       end
       puts 1; class << self
       end
+    RUBY
+  end
+
+  it 'does not cause an infinite loop between `Layout/RedundantLineBreak` and `Style/SingleLineDoEndBlock`' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      a do
+        b
+      end
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/RedundantLineBreak:
+        Enabled: true
+        InspectBlocks: true
+
+      Style/SingleLineDoEndBlock:
+        Enabled: true
+    YAML
+
+    status = cli.run(%w[--autocorrect])
+    expect(status).to eq(1)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      a { b }
+    RUBY
+  end
+
+  it 'does not trigger `Style/SingleArgumentDig` when `Style/DigChain` is enabled and will correct' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      x.dig('foo').dig('bar')
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Style/SingleArgumentDig:
+        Enabled: true
+
+      Style/DigChain:
+        Enabled: true
+    YAML
+
+    status = cli.run(%w[--only Style/SingleArgumentDig,Style/DigChain --autocorrect-all])
+    expect(status).to eq(0)
+    expect($stdout.string).to eq(<<~RESULT)
+      Inspecting 1 file
+      C
+
+      Offenses:
+
+      example.rb:1:3: C: [Corrected] Style/DigChain: Use dig('foo', 'bar') instead of chaining.
+      x.dig('foo').dig('bar')
+        ^^^^^^^^^^^^^^^^^^^^^
+
+      1 file inspected, 1 offense detected, 1 offense corrected
+    RESULT
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      x.dig('foo', 'bar')
+    RUBY
+  end
+
+  it 'does not change the number of spaces when autocorrecting a combination of `Layout/LineEndStringConcatenationIndentation`' \
+     'and `Style/StringLiterals` with newlines' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~'RUBY', retain_line_terminators: RuboCop::Platform.windows?)
+      "    0:  4\n" \
+      "    8: 12\n" \
+      "   16: 20"
+    RUBY
+
+    status = cli.run(%w[
+                       --autocorrect-all
+                       --only Layout/LineContinuationLeadingSpace,Style/StringLiterals
+                     ])
+    expect(status).to eq(0)
+    expect($stdout.string).to eq(<<~'RESULT')
+      Inspecting 1 file
+      C
+
+      Offenses:
+
+      example.rb:2:2: C: [Corrected] Layout/LineContinuationLeadingSpace: Move leading spaces to the end of the previous line.
+      "    8: 12\n" \
+       ^^^^
+      example.rb:3:1: C: [Corrected] Style/StringLiterals: Prefer single-quoted strings when you don't need string interpolation or special symbols.
+      "   16: 20"
+      ^^^^^^^^^^^
+      example.rb:3:2: C: [Corrected] Layout/LineContinuationLeadingSpace: Move leading spaces to the end of the previous line.
+      "   16: 20"
+       ^^^
+
+      1 file inspected, 3 offenses detected, 3 offenses corrected
+    RESULT
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~'RUBY')
+      "    0:  4\n    " \
+      "8: 12\n   " \
+      '16: 20'
+    RUBY
+  end
+
+  it 'handles `Lint/LiteralInInterpolation`, `Lint/ArrayLiteralInRegexp`, `Style/RedundantRegexpCharacterClass`' \
+     'and `Style/RedundantRegexpEscape` together' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~'RUBY')
+      /#{%w[$ | ^ -]}/
+      /#{%w[a]}/
+    RUBY
+
+    cops = %w[
+      Lint/LiteralInInterpolation
+      Lint/ArrayLiteralInRegexp
+      Style/RedundantRegexpCharacterClass
+      Style/RedundantRegexpEscape
+    ]
+
+    status = cli.run(%W[--autocorrect-all --only #{cops.join(',')}])
+    expect(status).to eq(0)
+    expect($stdout.string).to eq(<<~'RESULT')
+      Inspecting 1 file
+      W
+
+      Offenses:
+
+      example.rb:1:2: W: [Corrected] Lint/ArrayLiteralInRegexp: Use a character class instead of interpolating an array in a regexp.
+      /#{%w[$ | ^ -]}/
+       ^^^^^^^^^^^^^^
+      example.rb:1:3: C: [Corrected] Style/RedundantRegexpEscape: Redundant escape inside regexp literal
+      /[\$\|\^\-]/
+        ^^
+      example.rb:1:5: C: [Corrected] Style/RedundantRegexpEscape: Redundant escape inside regexp literal
+      /[\$\|\^\-]/
+          ^^
+      example.rb:1:9: C: [Corrected] Style/RedundantRegexpEscape: Redundant escape inside regexp literal
+      /[\$\|\^\-]/
+              ^^
+      example.rb:2:2: W: [Corrected] Lint/ArrayLiteralInRegexp: Use a character class instead of interpolating an array in a regexp.
+      /#{%w[a]}/
+       ^^^^^^^^
+      example.rb:2:2: C: [Corrected] Style/RedundantRegexpCharacterClass: Redundant single-element character class, [a] can be replaced with a.
+      /[a]/
+       ^^^
+
+      1 file inspected, 6 offenses detected, 6 offenses corrected
+    RESULT
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~'RUBY')
+      /[$|\^-]/
+      /a/
     RUBY
   end
 end

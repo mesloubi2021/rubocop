@@ -22,6 +22,8 @@ https://github.com/rubocop/vscode-rubocop[vscode-rubocop] integrates RuboCop int
 
 You can install this VS Code extension from the https://marketplace.visualstudio.com/items?itemName=rubocop.vscode-rubocop[Visual Studio Marketplace].
 
+For VS Code-based IDEs like VSCodium or Eclipse Theia, the extension can be installed from the https://open-vsx.org/extension/rubocop/vscode-rubocop[Open VSX Registry].
+
 === Emacs (Eglot)
 
 https://github.com/joaotavora/eglot[Eglot] is a client for Language Server Protocol servers on Emacs.
@@ -109,7 +111,7 @@ Below is an example of additional setting for autocorrecting on save:
 
 ```lua
 vim.api.nvim_create_autocmd("BufWritePre", {
-  pattern = "ruby",
+  pattern = "*.rb",
   callback = function()
     vim.lsp.buf.format()
   end,
@@ -124,6 +126,23 @@ https://github.com/helix-editor/helix[Helix] is a post-modern modal text editor 
 
 Add the following to your Helix language configuration file (e.g. `~/.config/helix/languages.toml`):
 
+Helix 23.10 or later:
+
+```toml
+[language-server.rubocop]
+command = "bundle"
+args = ["exec", "rubocop", "--lsp"]
+
+[[language]]
+name = "ruby"
+auto-format = true
+language-servers = [
+  { name = "rubocop" }
+]
+```
+
+Before Helix 23.10 or earlier:
+
 ```toml
 [[language]]
 name = "ruby"
@@ -133,6 +152,23 @@ auto-format = true
 
 See Helix's official documentation for more information:
 https://docs.helix-editor.com/languages.html
+
+=== Sublime Text
+
+For https://www.sublimetext.com/[Sublime Text] LSP support is available through the https://github.com/sublimelsp/LSP[Sublime-LSP] plugin.
+Add the following to its settings (accessible via `Preferences → Package Settings → LSP → Settings`) to enable RuboCop:
+
+```json
+{
+    "clients": {
+        "rubocop": {
+            "enabled": true,
+            "command": ["bundle", "exec", "rubocop", "--lsp"],
+            "selector": "source.ruby | text.html.ruby | text.html.rails",
+        },
+    },
+}
+```
 
 == Autocorrection
 
@@ -211,6 +247,31 @@ For detailed instructions on setting the parameter, please refer to the configur
 
 NOTE: The `layoutMode` parameter was introduced in RuboCop 1.55.
 
+== Enable YJIT
+
+YJIT, a Ruby JIT compiler, has been supported since Ruby 3.1.
+In an LSP client, you can enable YJIT by launching `rubocop --lsp` with the `RUBY_YJIT_ENABLE=1` environment variable using the `env` command:
+
+```sh
+env RUBY_YJIT_ENABLE=1 bundle exec rubocop --lsp
+```
+
+Below is an example for Emacs's Eglot:
+
+```lisp
+(add-to-list 'eglot-server-programs '(ruby-mode . ("env" "RUBY_YJIT_ENABLE=1" "bundle" "exec" "rubocop" "--lsp")))
+```
+
+The console of the LSP client will display `+YJIT`:
+
+```console
+RuboCop 1.63.4 language server +YJIT initialized, PID 13501
+```
+
+For more details, please refer to the respective LSP configuration documentation.
+In some cases, like with vscode-rubocop, it may be available as a built-in option:
+https://github.com/rubocop/vscode-rubocop#rubocopyjitenabled
+
 == Run as a Language Server
 
 Run `rubocop --lsp` command from LSP client.
@@ -218,8 +279,18 @@ Run `rubocop --lsp` command from LSP client.
 When the language server is started, the command displays the language server's PID:
 
 ```console
-$ ps aux | grep rubocop
-user             17414   0.0  0.2  5557716 144376   ??  Ss    4:48PM   0:02.13 /Users/user/.rbenv/versions/3.2.2/lib/ruby/gems/3.2.0/bin/rubocop --lsp
+$ ps aux | grep 'rubocop --lsp'
+user             17414   0.0  0.2  5557716 144376   ??  Ss    4:48PM   0:02.13 rubocop --lsp /Users/user/src/github.com/rubocop/rubocop
 ```
 
 NOTE: `rubocop --lsp` is for starting LSP client, so users don't manually execute it.
+
+== Language Server Development
+
+RuboCop provides APIs for developers of original language server or tools analogous to LSP, using RuboCop as the backend, instead of the RuboCop's built-in LSP.
+
+- `RuboCop::LSP.enable` enables LSP mode, customizing for LSP-specific features such as autocorrection and short offense message.
+- `RuboCop::LSP.disable` disables LSP mode, which can be particularly useful for testing. And intentional autocorrection by the user can be specified.
+e.g, `workspace/executeCommand` and `textDocument/codeAction` LSP methods.
+
+When implementing custom cops, `RuboCop::LSP.enabled?` can be used to achieve behavior that considers these states.

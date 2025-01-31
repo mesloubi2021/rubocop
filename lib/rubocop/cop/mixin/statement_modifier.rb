@@ -5,7 +5,6 @@ module RuboCop
     # Common functionality for modifier cops.
     module StatementModifier
       include LineLengthHelp
-      include RangeHelp
 
       private
 
@@ -56,16 +55,23 @@ module RuboCop
       end
 
       def if_body_source(if_body)
-        if if_body.call_type? &&
-           if_body.last_argument&.hash_type? && if_body.last_argument.pairs.last&.value_omission?
+        if if_body.call_type? && !if_body.method?(:[]=) && omitted_value_in_last_hash_arg?(if_body)
           "#{method_source(if_body)}(#{if_body.arguments.map(&:source).join(', ')})"
         else
           if_body.source
         end
       end
 
+      def omitted_value_in_last_hash_arg?(if_body)
+        return false unless (last_argument = if_body.last_argument)
+
+        last_argument.hash_type? && last_argument.pairs.last&.value_omission?
+      end
+
       def method_source(if_body)
-        range_between(if_body.source_range.begin_pos, if_body.loc.selector.end_pos).source
+        end_range = if_body.implicit_call? ? if_body.loc.dot.end : if_body.loc.selector
+
+        if_body.source_range.begin.join(end_range).source
       end
 
       def first_line_comment(node)
@@ -95,7 +101,7 @@ module RuboCop
       end
 
       def max_line_length
-        return unless config.for_cop('Layout/LineLength')['Enabled']
+        return unless config.cop_enabled?('Layout/LineLength')
 
         config.for_cop('Layout/LineLength')['Max']
       end

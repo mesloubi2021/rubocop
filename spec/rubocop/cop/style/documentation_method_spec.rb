@@ -139,7 +139,7 @@ RSpec.describe RuboCop::Cop::Style::DocumentationMethod, :config do
             RUBY
           end
 
-          it 'register an offense with inline `private_class_method`' do
+          it 'registers an offense with inline `private_class_method`' do
             expect_offense(<<~RUBY)
               private_class_method def self.foo
                                    ^^^^^^^^^^^^ Missing method documentation comment.
@@ -991,6 +991,19 @@ RSpec.describe RuboCop::Cop::Style::DocumentationMethod, :config do
               RUBY
             end
           end
+        end
+      end
+
+      describe 'when AllowedMethods is configured' do
+        before { config['Style/DocumentationMethod'] = { 'AllowedMethods' => ['method_missing'] } }
+
+        it 'ignores the methods in the config' do
+          expect_no_offenses(<<~RUBY)
+            class Foo
+              def method_missing(name, *args)
+              end
+            end
+          RUBY
         end
       end
     end

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'erb'
-require 'pathname'
 require 'yaml'
 require_relative 'config_finder'
 
@@ -42,6 +41,10 @@ module RuboCop
       def clear_options
         @debug = nil
         @loaded_features = Set.new
+        @disable_pending_cops = nil
+        @enable_pending_cops = nil
+        @ignore_parent_exclusion = nil
+        @ignore_unrecognized_cops = nil
         FileFinder.root_level = nil
       end
 
@@ -68,8 +71,8 @@ module RuboCop
       def load_yaml_configuration(absolute_path)
         file_contents = read_file(absolute_path)
         yaml_code = Dir.chdir(File.dirname(absolute_path)) { ERB.new(file_contents).result }
-        check_duplication(yaml_code, absolute_path)
-        hash = yaml_safe_load(yaml_code, absolute_path) || {}
+        yaml_tree = check_duplication(yaml_code, absolute_path)
+        hash = yaml_tree_to_hash(yaml_tree) || {}
 
         puts "configuration from #{absolute_path}" if debug?
 
@@ -165,7 +168,7 @@ module RuboCop
       # searches will go past this directory.
       # @deprecated Use `RuboCop::ConfigFinder.project_root` instead.
       def project_root
-        warn Rainbow(<<~WARNING).yellow
+        warn Rainbow(<<~WARNING).yellow, uplevel: 1
           `RuboCop::ConfigLoader.project_root` is deprecated and will be removed in RuboCop 2.0. \
           Use `RuboCop::ConfigFinder.project_root` instead.
         WARNING
@@ -236,8 +239,8 @@ module RuboCop
         raise ConfigNotFoundError, "Configuration file not found: #{absolute_path}"
       end
 
-      def yaml_safe_load(yaml_code, filename)
-        yaml_safe_load!(yaml_code, filename)
+      def yaml_tree_to_hash(yaml_tree)
+        yaml_tree_to_hash!(yaml_tree)
       rescue ::StandardError
         if defined?(::SafeYAML)
           raise 'SafeYAML is unmaintained, no longer needed and should be removed'
@@ -246,10 +249,16 @@ module RuboCop
         raise
       end
 
-      def yaml_safe_load!(yaml_code, filename)
-        YAML.safe_load(
-          yaml_code, permitted_classes: [Regexp, Symbol], aliases: true, filename: filename
-        )
+      def yaml_tree_to_hash!(yaml_tree)
+        return nil unless yaml_tree
+
+        # Optimization: Because we checked for duplicate keys, we already have the
+        # yaml tree and don't need to parse it again.
+        # Also see https://github.com/ruby/psych/blob/v5.1.2/lib/psych.rb#L322-L336
+        class_loader = YAML::ClassLoader::Restricted.new(%w[Regexp Symbol], [])
+        scanner = YAML::ScalarScanner.new(class_loader)
+        visitor = YAML::Visitors::ToRuby.new(scanner, class_loader)
+        visitor.accept(yaml_tree)
       end
     end
 

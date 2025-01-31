@@ -423,4 +423,97 @@ RSpec.describe RuboCop::Cop::Lint::LiteralInInterpolation, :config do
       RUBY
     end
   end
+
+  context 'handling regexp special characters' do
+    context 'when inside a `regexp` literal' do
+      it 'properly escapes a forward slash' do
+        expect_offense(<<~'RUBY')
+          /test#{'/'}test/
+                 ^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          /test\/test/
+        RUBY
+      end
+
+      it 'properly escapes multiple forward slashes' do
+        expect_offense(<<~'RUBY')
+          /test#{'/a/b/c/'}test/
+                 ^^^^^^^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          /test\/a\/b\/c\/test/
+        RUBY
+      end
+
+      it 'handles escaped forward slashes' do
+        expect_offense(<<~'RUBY')
+          /test#{'\\/'}test/
+                 ^^^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          /test\/test/
+        RUBY
+      end
+
+      it 'handles escaped backslashes' do
+        expect_offense(<<~'RUBY')
+          /test#{'\\\\/'}test/
+                 ^^^^^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          /test\\\/test/
+        RUBY
+      end
+    end
+
+    context 'when inside a %r{} `regexp`' do
+      it 'does not escape the autocorrection' do
+        expect_offense(<<~'RUBY')
+          %r{test#{'/'}test}
+                   ^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          %r{test/test}
+        RUBY
+      end
+    end
+
+    context 'when inside a non-`regexp` node' do
+      it 'does not escape the autocorrection' do
+        expect_offense(<<~'RUBY')
+          "test#{'/'}test"
+                 ^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          "test/test"
+        RUBY
+      end
+    end
+
+    context 'with invalid string literal' do
+      it 'registers an offense' do
+        expect_offense(<<~'RUBY')
+          "#{"\201\203"}"
+             ^^^^^^^^^^ Literal interpolation detected.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          "\201\203"
+        RUBY
+      end
+    end
+  end
+
+  it 'does not register an offense for an array inside a regexp' do
+    expect_no_offenses(<<~'RUBY')
+      /#{%w[a b c]}/
+    RUBY
+  end
 end

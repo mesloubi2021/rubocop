@@ -8,7 +8,7 @@ module RuboCop
       # Offenses are registered for regexp character classes like `/[A-z]/`
       # as well as range objects like `('A'..'z')`.
       #
-      # NOTE: Range objects cannot be autocorrected.
+      # NOTE: `Range` objects cannot be autocorrected.
       #
       # @safety
       #   The cop autocorrects regexp character classes
@@ -36,19 +36,18 @@ module RuboCop
 
         def on_irange(node)
           return unless node.children.compact.all?(&:str_type?)
+          return if node.begin.nil? || node.end.nil?
 
-          range_start, range_end = node.children
-
-          return if range_start.nil? || range_end.nil?
-
-          add_offense(node) if unsafe_range?(range_start.value, range_end.value)
+          add_offense(node) if unsafe_range?(node.begin.value, node.end.value)
         end
         alias on_erange on_irange
 
         def on_regexp(node)
           each_unsafe_regexp_range(node) do |loc|
+            next unless (replacement = regexp_range(loc.source))
+
             add_offense(loc) do |corrector|
-              corrector.replace(loc, rewrite_regexp_range(loc.source))
+              corrector.replace(loc, replacement)
             end
           end
         end
@@ -99,10 +98,13 @@ module RuboCop
           end
         end
 
-        def rewrite_regexp_range(source)
+        def regexp_range(source)
           open, close = source.split('-')
-          first = [open, range_for(open).end]
-          second = [range_for(close).begin, close]
+          return unless (open_range = range_for(open))
+          return unless (close_range = range_for(close))
+
+          first = [open, open_range.end]
+          second = [close_range.begin, close]
           "#{first.uniq.join('-')}#{second.uniq.join('-')}"
         end
       end

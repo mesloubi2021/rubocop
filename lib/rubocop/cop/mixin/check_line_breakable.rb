@@ -43,12 +43,14 @@ module RuboCop
     # (Note: Passes may not happen exactly in this sequence.)
     module CheckLineBreakable
       def extract_breakable_node(node, max)
-        if node.send_type?
+        if node.call_type?
+          return if chained_to_heredoc?(node)
+
           args = process_args(node.arguments)
           return extract_breakable_node_from_elements(node, args, max)
         elsif node.def_type?
           return extract_breakable_node_from_elements(node, node.arguments, max)
-        elsif node.array_type? || node.hash_type?
+        elsif node.type?(:array, :hash)
           return extract_breakable_node_from_elements(node, node.children, max)
         end
         nil
@@ -72,9 +74,9 @@ module RuboCop
       def extract_first_element_over_column_limit(node, elements, max)
         line = node.first_line
 
-        # If a `send` node is not parenthesized, don't move the first element, because it
+        # If a `send` or `csend` node is not parenthesized, don't move the first element, because it
         # can result in changed behavior or a syntax error.
-        if node.send_type? && !node.parenthesized? && !first_argument_is_heredoc?(node)
+        if node.call_type? && !node.parenthesized? && !first_argument_is_heredoc?(node)
           elements = elements.drop(1)
         end
 
@@ -96,10 +98,10 @@ module RuboCop
       end
 
       # @api private
-      # If a send node contains a heredoc argument, splitting cannot happen
+      # If a `send` or `csend` node contains a heredoc argument, splitting cannot happen
       # after the heredoc or else it will cause a syntax error.
       def shift_elements_for_heredoc_arg(node, elements, index)
-        return index unless node.send_type? || node.array_type?
+        return index unless node.type?(:call, :array)
 
         heredoc_index = elements.index { |arg| arg.respond_to?(:heredoc?) && arg.heredoc? }
         return index unless heredoc_index
@@ -152,9 +154,9 @@ module RuboCop
           # Ignore ancestors on different lines.
           break if ancestor.first_line != node.first_line
 
-          if ancestor.hash_type? || ancestor.array_type?
+          if ancestor.type?(:hash, :array)
             elements = ancestor.children
-          elsif ancestor.send_type?
+          elsif ancestor.call_type?
             elements = process_args(ancestor.arguments)
           else
             next
@@ -169,12 +171,12 @@ module RuboCop
       # @api private
       def contained_by_multiline_collection_that_could_be_broken_up?(node)
         node.each_ancestor.find do |ancestor|
-          if (ancestor.hash_type? || ancestor.array_type?) &&
+          if ancestor.type?(:hash, :array) &&
              breakable_collection?(ancestor, ancestor.children)
             return children_could_be_broken_up?(ancestor.children)
           end
 
-          next unless ancestor.send_type?
+          next unless ancestor.call_type?
 
           args = process_args(ancestor.arguments)
           return children_could_be_broken_up?(args) if breakable_collection?(ancestor, args)
@@ -218,9 +220,17 @@ module RuboCop
 
       # @api private
       def already_on_multiple_lines?(node)
-        return node.first_line != node.arguments.last.last_line if node.def_type?
+        return node.first_line != node.last_argument.last_line if node.def_type?
 
         !node.single_line?
+      end
+
+      def chained_to_heredoc?(node)
+        while (node = node.receiver)
+          return true if node.type?(:str, :dstr, :xstr) && node.heredoc?
+        end
+
+        false
       end
     end
   end

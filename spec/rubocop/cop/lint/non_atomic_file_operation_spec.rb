@@ -89,7 +89,7 @@ RSpec.describe RuboCop::Cop::Lint::NonAtomicFileOperation, :config do
 
   %i[rm_r rmtree].each do |remove_method|
     it 'does not register an offense when use `FileTest.exist?` before remove recursive file' do
-      expect_no_offenses(<<~RUBY, remove_method: remove_method)
+      expect_no_offenses(<<~RUBY)
         if FileTest.exist?(path)
           FileUtils.#{remove_method}(path)
         end
@@ -190,6 +190,30 @@ RSpec.describe RuboCop::Cop::Lint::NonAtomicFileOperation, :config do
     RUBY
   end
 
+  it 'registers an offense when use file existence checks `unless` by postfix before creating file while Dir.mkdir has 2 arguments' do
+    expect_offense(<<~RUBY)
+      Dir.mkdir(path, 0o0755) unless Dir.exist?(path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^ Remove unnecessary existence check `Dir.exist?`.
+      ^^^^^^^^^^^^^^^^^^^^^^^ Use atomic file operation method `FileUtils.mkdir_p`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      FileUtils.mkdir_p(path, mode: 0o0755)
+    RUBY
+  end
+
+  it 'registers an offense when use file existence checks `unless` by postfix before creating file while Dir.mkdir has an argument' do
+    expect_offense(<<~RUBY)
+      Dir.mkdir(path) unless Dir.exist?(path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^ Remove unnecessary existence check `Dir.exist?`.
+      ^^^^^^^^^^^^^^^ Use atomic file operation method `FileUtils.mkdir_p`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      FileUtils.mkdir_p(path)
+    RUBY
+  end
+
   it 'registers an offense when use file existence checks `if` by postfix before removing file' do
     expect_offense(<<~RUBY)
       FileUtils.remove(path) if FileTest.exist?(path)
@@ -226,6 +250,56 @@ RSpec.describe RuboCop::Cop::Lint::NonAtomicFileOperation, :config do
     expect_correction(<<~RUBY)
       FileUtils.mkdir_p(path)
     RUBY
+  end
+
+  context 'with fully-qualified constant names' do
+    it 'registers an offense when existence check uses fully qualified constant name' do
+      expect_offense(<<~RUBY)
+        if ::FileTest.exist?(path)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^ Remove unnecessary existence check `FileTest.exist?`.
+          FileUtils.delete(path)
+          ^^^^^^^^^^^^^^^^^^^^^^ Use atomic file operation method `FileUtils.rm_f`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+
+        #{trailing_whitespace}#{trailing_whitespace}FileUtils.rm_f(path)
+
+      RUBY
+    end
+
+    it 'registers an offense when file method uses fully qualified constant name' do
+      expect_offense(<<~RUBY)
+        if FileTest.exist?(path)
+        ^^^^^^^^^^^^^^^^^^^^^^^^ Remove unnecessary existence check `FileTest.exist?`.
+          ::FileUtils.delete(path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^ Use atomic file operation method `FileUtils.rm_f`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+
+        #{trailing_whitespace}#{trailing_whitespace}::FileUtils.rm_f(path)
+
+      RUBY
+    end
+
+    it 'registers an offense when both methods use fully qualified constant name' do
+      expect_offense(<<~RUBY)
+        if ::FileTest.exist?(path)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^ Remove unnecessary existence check `FileTest.exist?`.
+          ::FileUtils.delete(path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^ Use atomic file operation method `FileUtils.rm_f`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+
+        #{trailing_whitespace}#{trailing_whitespace}::FileUtils.rm_f(path)
+
+      RUBY
+    end
   end
 
   it 'does not register an offense when not checking for the existence' do
@@ -299,6 +373,18 @@ RSpec.describe RuboCop::Cop::Lint::NonAtomicFileOperation, :config do
       if FileTest.exist?(path) || condition
         FileUtils.mkdir(path)
       end
+    RUBY
+  end
+
+  it 'does not register an offense without explicit receiver' do
+    expect_no_offenses(<<~RUBY)
+      mkdir(path) unless FileTest.exist?(path)
+    RUBY
+  end
+
+  it 'does not register an offense with non-constant receiver' do
+    expect_no_offenses(<<~RUBY)
+      storage[:files].delete(file) unless File.exists?(file)
     RUBY
   end
 end

@@ -2,6 +2,7 @@
 
 require 'securerandom'
 require 'socket'
+require 'stringio'
 
 #
 # This code is based on https://github.com/fohte/rubocop-daemon.
@@ -44,6 +45,10 @@ module RuboCop
         write_port_and_token_files
 
         pid = fork do
+          if defined?(RubyVM::YJIT.enable)
+            RubyVM::YJIT.enable
+          end
+
           Process.daemon(true)
           $stderr.reopen(Cache.stderr_path, 'w')
           process_input

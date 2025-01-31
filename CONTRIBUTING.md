@@ -17,9 +17,9 @@ do so.
 
 ```console
 $ rubocop -V
-1.57.1 (using Parser 3.2.2.3, rubocop-ast 1.29.0, running on ruby 3.2.2) [x86_64-linux]
-  - rubocop-performance 1.18.0
-  - rubocop-rspec 2.23.2
+1.71.1 (using Parser 3.3.5.0, rubocop-ast 1.32.3, analyzing as Ruby 3.3, running on ruby 3.3.5) [x86_64-linux]
+  - rubocop-performance 1.22.1
+  - rubocop-rspec 3.1.0
 ```
 
 * Include any relevant code to the issue summary.
@@ -64,12 +64,9 @@ Notable `misspell` help options or flags are:
 * `-w`: Overwrite file with corrections (default is just to display)
 
 We also run [codespell](https://github.com/codespell-project/codespell) with GitHub Actions to check spelling and
-[codespell](https://pypi.org/project/codespell/) runs against a [small custom dictionary](https://github.com/rubocop/rubocop/blob/master/codespell.txt).
-`codespell` is written in [Python](https://www.python.org/) and you can run it with:
+[codespell](https://pypi.org/project/codespell/) runs against a [small custom dictionary](https://github.com/rubocop/rubocop/blob/master/.codespellrc).
 
-```console
-$ codespell --ignore-words=codespell.txt
-```
+If you have `codespell` locally available in your `$PATH`, `bundle exec rake` will run it for you.
 
 ### Linting YAML files
 

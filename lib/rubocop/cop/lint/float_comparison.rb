@@ -18,6 +18,10 @@ module RuboCop
       #   # good - using BigDecimal
       #   x.to_d == 0.1.to_d
       #
+      #   # good - comparing against zero
+      #   x == 0.0
+      #   x != 0.0
+      #
       #   # good
       #   (x - 0.1).abs < Float::EPSILON
       #
@@ -25,11 +29,15 @@ module RuboCop
       #   tolerance = 0.0001
       #   (x - 0.1).abs < tolerance
       #
+      #   # good - comparing against nil
+      #   Float(x, exception: false) == nil
+      #
       #   # Or some other epsilon based type of comparison:
       #   # https://www.embeddeduse.com/2019/08/26/qt-compare-two-floats/
       #
       class FloatComparison < Base
-        MSG = 'Avoid (in)equality comparisons of floats as they are unreliable.'
+        MSG_EQUALITY = 'Avoid equality comparisons of floats as they are unreliable.'
+        MSG_INEQUALITY = 'Avoid inequality comparisons of floats as they are unreliable.'
 
         EQUALITY_METHODS = %i[== != eql? equal?].freeze
         FLOAT_RETURNING_METHODS = %i[to_f Float fdiv].freeze
@@ -38,9 +46,17 @@ module RuboCop
         RESTRICT_ON_SEND = EQUALITY_METHODS
 
         def on_send(node)
-          lhs, _method, rhs = *node
-          add_offense(node) if float?(lhs) || float?(rhs)
+          return unless node.arguments.one?
+
+          lhs = node.receiver
+          rhs = node.first_argument
+
+          return if literal_safe?(lhs) || literal_safe?(rhs)
+
+          message = node.method?(:!=) ? MSG_INEQUALITY : MSG_EQUALITY
+          add_offense(node, message: message) if float?(lhs) || float?(rhs)
         end
+        alias on_csend on_send
 
         private
 
@@ -59,11 +75,16 @@ module RuboCop
           end
         end
 
+        def literal_safe?(node)
+          return false unless node
+
+          (node.numeric_type? && node.value.zero?) || node.nil_type?
+        end
+
         # rubocop:disable Metrics/PerceivedComplexity
         def check_send(node)
           if node.arithmetic_operation?
-            lhs, _operation, rhs = *node
-            float?(lhs) || float?(rhs)
+            float?(node.receiver) || float?(node.first_argument)
           elsif FLOAT_RETURNING_METHODS.include?(node.method_name)
             true
           elsif node.receiver&.float_type?

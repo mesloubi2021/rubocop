@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 RSpec.describe RuboCop::Cop::InternalAffairs::CopDescription, :config do
-  before do
-    allow_any_instance_of(described_class).to receive(:relevant_file?).and_return(true) # rubocop:disable RSpec/AnyInstance
-  end
-
   context 'The description starts with `This cop ...`' do
     it 'registers an offense and corrects if using just a verb' do
       expect_offense(<<~RUBY)

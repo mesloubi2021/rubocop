@@ -6,7 +6,7 @@ require 'yaml'
 module RuboCop
   # A help class for ConfigLoader that handles configuration resolution.
   # @api private
-  class ConfigLoaderResolver
+  class ConfigLoaderResolver # rubocop:disable Metrics/ClassLength
     def resolve_requires(path, hash)
       config_dir = File.dirname(path)
       hash.delete('require').tap do |loaded_features|
@@ -163,14 +163,21 @@ module RuboCop
     end
 
     def warn_on_duplicate_setting(base_hash, derived_hash, key, **opts)
+      # If the file being considered is remote, don't bother checking for duplicates
+      return if remote_config?(opts[:file])
+
       return unless duplicate_setting?(base_hash, derived_hash, key, opts[:inherited_file])
 
       inherit_mode = opts[:inherit_mode]['merge'] || opts[:inherit_mode]['override']
-      return if base_hash[key].is_a?(Array) && inherit_mode && inherit_mode.include?(key)
+      return if base_hash[key].is_a?(Array) && inherit_mode&.include?(key)
 
-      puts "#{PathUtil.smart_path(opts[:file])}: " \
-           "#{opts[:cop_name]}:#{key} overrides " \
-           "the same parameter in #{opts[:inherited_file]}"
+      puts duplicate_setting_warning(opts, key)
+    end
+
+    def duplicate_setting_warning(opts, key)
+      "#{PathUtil.smart_path(opts[:file])}: " \
+        "#{opts[:cop_name]}:#{key} overrides " \
+        "the same parameter in #{opts[:inherited_file]}"
     end
 
     def determine_inherit_mode(hash, key)
@@ -194,11 +201,11 @@ module RuboCop
     end
 
     def should_merge?(mode, key)
-      mode && mode['merge'] && mode['merge'].include?(key)
+      mode && mode['merge']&.include?(key)
     end
 
     def should_override?(mode, key)
-      mode && mode['override'] && mode['override'].include?(key)
+      mode && mode['override']&.include?(key)
     end
 
     def merge_hashes?(base_hash, derived_hash, key)
@@ -239,8 +246,11 @@ module RuboCop
     end
 
     def remote_file?(uri)
-      regex = URI::DEFAULT_PARSER.make_regexp(%w[http https])
-      /\A#{regex}\z/.match?(uri)
+      uri.start_with?('http://', 'https://')
+    end
+
+    def remote_config?(file)
+      file.is_a?(RemoteConfig)
     end
 
     def handle_disabled_by_default(config, new_default_configuration)
@@ -267,8 +277,14 @@ module RuboCop
 
     def gem_config_path(gem_name, relative_config_path)
       if defined?(Bundler)
-        gem = Bundler.load.specs[gem_name].first
-        gem_path = gem.full_gem_path if gem
+        begin
+          gem = Bundler.load.specs[gem_name].first
+          gem_path = gem.full_gem_path if gem
+        rescue Bundler::GemfileNotFound
+          # No Gemfile found. Bundler may be loaded manually
+        rescue Bundler::GitError
+          # The Gemfile exists but contains an uninstalled git source
+        end
       end
 
       gem_path ||= Gem::Specification.find_by_name(gem_name).gem_dir

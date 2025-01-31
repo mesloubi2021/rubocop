@@ -35,11 +35,11 @@ module RuboCop
         def on_send(node)
           return unless node.parenthesized?
 
-          node.each_child_node(:send, :csend) do |nested|
+          node.each_child_node(:call) do |nested|
             next if allowed_omission?(nested)
 
             message = format(MSG, source: nested.source)
-            add_offense(nested.source_range, message: message) do |corrector|
+            add_offense(nested, message: message) do |corrector|
               autocorrect(corrector, nested)
             end
           end

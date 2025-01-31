@@ -60,9 +60,11 @@ Helix supports Solargraph natively to provide LSP features. For formatting suppo
 
 === Sublime Text
 
-If you're a ST user you might find the
-https://github.com/pderichs/sublime_rubocop[Sublime RuboCop plugin]
-useful.
+For ST you might find the
+https://github.com/SublimeLinter/SublimeLinter-rubocop[SublimeLinter-rubocop] or the
+https://github.com/pderichs/sublime_rubocop[Sublime RuboCop] plugin useful.
+
+You may also consider using one of the LSP servers mentioned above which utilize RuboCop by using the https://github.com/sublimelsp/LSP[Sublime-LSP] plugin and follow its https://lsp.sublimetext.io/language_servers/#ruby-ruby-on-rails[documentation] for configuration.
 
 === Brackets
 
@@ -123,7 +125,7 @@ following to your `.pre-commit-config.yaml` file:
 [source,yaml]
 ----
 - repo: https://github.com/rubocop/rubocop
-  rev: v1.8.1
+  rev: v1.71.1
   hooks:
     - id: rubocop
 ----
@@ -134,13 +136,15 @@ entries in `additional_dependencies`:
 [source,yaml]
 ----
 - repo: https://github.com/rubocop/rubocop
-  rev: v1.8.1
+  rev: v1.71.1
   hooks:
     - id: rubocop
       additional_dependencies:
         - rubocop-rails
         - rubocop-rspec
 ----
+
+RuboCop supports pre-commit hook integration since version 1.9.
 
 == Guard integration
 

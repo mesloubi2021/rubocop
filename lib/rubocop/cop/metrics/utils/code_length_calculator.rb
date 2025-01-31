@@ -9,7 +9,7 @@ module RuboCop
           extend NodePattern::Macros
           include Util
 
-          FOLDABLE_TYPES = %i[array hash heredoc send csend].freeze
+          FOLDABLE_TYPES = %i[array hash heredoc method_call].freeze
           CLASSLIKE_TYPES = %i[class module].freeze
           private_constant :FOLDABLE_TYPES, :CLASSLIKE_TYPES
 
@@ -43,16 +43,16 @@ module RuboCop
             types.map do |type|
               case type
               when :array
-                ->(node) { node.array_type? }
+                lambda(&:array_type?)
               when :hash
-                ->(node) { node.hash_type? }
+                lambda(&:hash_type?)
               when :heredoc
                 ->(node) { heredoc_node?(node) }
               when :method_call
-                ->(node) { node.call_type? }
+                lambda(&:call_type?)
               else
-                raise ArgumentError, "Unknown foldable type: #{type.inspect}. " \
-                                     "Valid foldable types are: #{FOLDABLE_TYPES.join(', ')}."
+                raise Warning, "Unknown foldable type: #{type.inspect}. " \
+                               "Valid foldable types are: #{FOLDABLE_TYPES.join(', ')}."
               end
             end
           end
@@ -148,8 +148,7 @@ module RuboCop
             when :class, :module, :sclass, :block, :numblock, :def, :defs
               node.body
             when :casgn
-              _scope, _name, value = *node
-              extract_body(value)
+              extract_body(node.expression)
             else
               node
             end

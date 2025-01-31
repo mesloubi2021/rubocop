@@ -16,7 +16,7 @@ module RuboCop
       #   This cop is unsafe, because `sort...last` and `max` may not return the
       #   same element in all cases.
       #
-      #   In an enumerable where there are multiple elements where `a <=> b == 0`,
+      #   In an enumerable where there are multiple elements where ``a <=> b == 0``,
       #   or where the transformation done by the `sort_by` block has the
       #   same result, `sort.last` and `max` (or `sort_by.last` and `max_by`)
       #   will return different elements. `sort.last` will return the last
@@ -87,15 +87,15 @@ module RuboCop
         # @!method redundant_sort?(node)
         def_node_matcher :redundant_sort?, <<~MATCHER
           {
-            (send $(send _ $:sort) ${:last :first})
-            (send $(send _ $:sort) ${:[] :at :slice} {(int 0) (int -1)})
+            (call $(call _ $:sort) ${:last :first})
+            (call $(call _ $:sort) ${:[] :at :slice} {(int 0) (int -1)})
 
-            (send $(send _ $:sort_by _) ${:last :first})
+            (call $(call _ $:sort_by _) ${:last :first})
             (send $(send _ $:sort_by _) ${:[] :at :slice} {(int 0) (int -1)})
 
-            (send ({block numblock} $(send _ ${:sort_by :sort}) ...) ${:last :first})
-            (send
-              ({block numblock} $(send _ ${:sort_by :sort}) ...)
+            (call (any_block $(call _ ${:sort_by :sort}) ...) ${:last :first})
+            (call
+              (any_block $(call _ ${:sort_by :sort}) ...)
               ${:[] :at :slice} {(int 0) (int -1)}
             )
           }
@@ -108,6 +108,7 @@ module RuboCop
 
           register_offense(ancestor, sort_node, sorter, accessor)
         end
+        alias on_csend on_send
 
         private
 
@@ -180,7 +181,7 @@ module RuboCop
         end
 
         def arg_node(node)
-          node.arguments.first
+          node.first_argument
         end
 
         def arg_value(node)
@@ -200,7 +201,7 @@ module RuboCop
         def with_logical_operator?(node)
           return false unless (parent = node.parent)
 
-          parent.or_type? || parent.and_type?
+          parent.operator_keyword?
         end
       end
     end

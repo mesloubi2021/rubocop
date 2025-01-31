@@ -20,7 +20,6 @@ module RuboCop
       #  lambda.(x, y)
       class LambdaCall < Base
         include ConfigurableEnforcedStyle
-        include IgnoredNode
         extend AutoCorrector
 
         MSG = 'Prefer the use of `%<prefer>s` over `%<current>s`.'
@@ -45,6 +44,7 @@ module RuboCop
             correct_style_detected
           end
         end
+        alias on_csend on_send
 
         private
 
@@ -55,9 +55,10 @@ module RuboCop
         def prefer(node)
           receiver = node.receiver.source
           arguments = node.arguments.map(&:source).join(', ')
+          dot = node.loc.dot.source
           method = explicit_style? ? "call(#{arguments})" : "(#{arguments})"
 
-          "#{receiver}.#{method}"
+          "#{receiver}#{dot}#{method}"
         end
 
         def implicit_style?

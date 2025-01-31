@@ -17,6 +17,18 @@ module RuboCop
       # will not attempt to automatically add a binding, or add filename and
       # line values.
       #
+      # NOTE: This cop works only when a string literal is given as a code string.
+      # No offense is reported if a string variable is given as below:
+      #
+      # [source,ruby]
+      # ----
+      # code = <<-RUBY
+      #   def do_something
+      #   end
+      # RUBY
+      # eval code # not checked.
+      # ----
+      #
       # @example
       #   # bad
       #   eval <<-RUBY
@@ -41,17 +53,6 @@ module RuboCop
       #     def do_something
       #     end
       #   RUBY
-      #
-      # This cop works only when a string literal is given as a code string.
-      # No offense is reported if a string variable is given as below:
-      #
-      # @example
-      #   # not checked
-      #   code = <<-RUBY
-      #     def do_something
-      #     end
-      #   RUBY
-      #   eval code
       #
       class EvalWithLocation < Base
         extend AutoCorrector
@@ -84,8 +85,8 @@ module RuboCop
           # are considered.
           return if node.method?(:eval) && !valid_eval_receiver?(node.receiver)
 
-          code = node.arguments.first
-          return unless code && (code.str_type? || code.dstr_type?)
+          code = node.first_argument
+          return unless code&.type?(:str, :dstr)
 
           check_location(node, code)
         end
@@ -128,17 +129,6 @@ module RuboCop
           node.method?(:eval) ? node.arguments.size >= 2 : true
         end
 
-        # FIXME: It's a Style/ConditionalAssignment's false positive.
-        # rubocop:disable Style/ConditionalAssignment
-        def with_lineno?(node)
-          if node.method?(:eval)
-            node.arguments.size == 4
-          else
-            node.arguments.size == 3
-          end
-        end
-        # rubocop:enable Style/ConditionalAssignment
-
         def add_offense_for_incorrect_line(method_name, line_node, sign, line_diff)
           expected = expected_line(sign, line_diff)
           message = format(MSG_INCORRECT_LINE,
@@ -146,13 +136,13 @@ module RuboCop
                            actual: line_node.source,
                            expected: expected)
 
-          add_offense(line_node.source_range, message: message) do |corrector|
+          add_offense(line_node, message: message) do |corrector|
             corrector.replace(line_node, expected)
           end
         end
 
         def check_file(node, file_node)
-          return true if special_file_keyword?(file_node)
+          return if special_file_keyword?(file_node)
 
           message = format(MSG_INCORRECT_FILE,
                            method_name: node.method_name,
@@ -165,7 +155,9 @@ module RuboCop
         end
 
         def check_line(node, code)
-          line_node = node.arguments.last
+          line_node = node.last_argument
+          return if line_node.variable? || (line_node.send_type? && !line_node.method?(:+))
+
           line_diff = line_difference(line_node, code)
           if line_diff.zero?
             add_offense_for_same_line(node, line_node)
@@ -227,7 +219,7 @@ module RuboCop
         end
 
         def missing_line(node, code)
-          line_diff = line_difference(node.arguments.last, code)
+          line_diff = line_difference(node.last_argument, code)
           sign = line_diff.positive? ? :+ : :-
           expected_line(sign, line_diff)
         end

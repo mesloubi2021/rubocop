@@ -8,7 +8,8 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
         'Layout/HashAlignment' => { 'EnforcedHashRocketStyle' => hash_style },
         'Layout/SpaceAroundOperators' => {
           'AllowForAlignment' => allow_for_alignment,
-          'EnforcedStyleForExponentOperator' => exponent_operator_style
+          'EnforcedStyleForExponentOperator' => exponent_operator_style,
+          'EnforcedStyleForRationalLiterals' => rational_literals_style
         },
         'Layout/ExtraSpacing' => {
           'Enabled' => force_equal_sign_alignment,
@@ -20,6 +21,7 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
   let(:hash_style) { 'key' }
   let(:allow_for_alignment) { true }
   let(:exponent_operator_style) { nil }
+  let(:rational_literals_style) { nil }
   let(:force_equal_sign_alignment) { false }
 
   it 'accepts operator surrounded by tabs' do
@@ -36,6 +38,13 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
 
   it 'accepts rational' do
     expect_no_offenses('x = 2/3r')
+  end
+
+  it 'accepts multiple spaces between an operator and a tailing comment' do
+    expect_no_offenses(<<~RUBY)
+      foo +  # comment
+        bar
+    RUBY
   end
 
   it 'accepts scope operator' do
@@ -167,6 +176,18 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
     RUBY
   end
 
+  it 'accepts vertical alignment with different operators that end with `=`' do
+    expect_no_offenses(<<~RUBY)
+      var.foo       = a
+      var.bar      != b
+      var.quux     <= c
+      var.garply   >= d
+      var.corge    == e
+      var.fred     += f
+      var.baz     === g
+    RUBY
+  end
+
   it 'accepts an operator called with method syntax' do
     expect_no_offenses('Date.today.+(1).to_s')
   end
@@ -200,7 +221,7 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
     RUBY
   end
 
-  it 'registers an offenses for exponent operator with spaces' do
+  it 'registers an offense for exponent operator with spaces' do
     expect_offense(<<~RUBY)
       x = a * b ** 2
                 ^^ Space around operator `**` detected.
@@ -218,11 +239,49 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
     expect_no_offenses('x = a * b**2')
   end
 
+  it 'registers an offense for slash in rational literals with spaces' do
+    expect_offense(<<~RUBY)
+      x = a * b / 42r
+                ^ Space around operator `/` detected.
+      y = a * b/ 42r
+               ^ Space around operator `/` detected.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = a * b/42r
+      y = a * b/42r
+    RUBY
+  end
+
+  it 'accepts slash in rational literals without spaces' do
+    expect_no_offenses('x = a * b/42r')
+  end
+
+  it 'does not register an offense for slash in non rational literals without spaces' do
+    expect_no_offenses(<<~RUBY)
+      x = a * b / 42
+    RUBY
+  end
+
+  it 'registers slash in non rational literals without spaces' do
+    expect_offense(<<~RUBY)
+      x = a * b/42
+               ^ Surrounding space missing for operator `/`.
+      y = a * b/ 42
+               ^ Surrounding space missing for operator `/`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = a * b / 42
+      y = a * b / 42
+    RUBY
+  end
+
   context '>= Ruby 2.7', :ruby27 do
     let(:target_ruby_version) { 2.7 }
 
     # NOTE: It is `Layout/SpaceAroundKeyword` cop's role to detect this offense.
-    it 'does not register an offenses for one-line pattern matching syntax (`in`)' do
+    it 'does not register an offense for one-line pattern matching syntax (`in`)' do
       expect_no_offenses(<<~RUBY)
         ""in foo
       RUBY
@@ -232,7 +291,7 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
   context '>= Ruby 3.0', :ruby30 do
     let(:target_ruby_version) { 3.0 }
 
-    it 'registers an offenses for one-line pattern matching syntax (`=>`)' do
+    it 'registers an offense for one-line pattern matching syntax (`=>`)' do
       expect_offense(<<~RUBY)
         ""=>foo
           ^^ Surrounding space missing for operator `=>`.
@@ -247,7 +306,7 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
   context 'when EnforcedStyleForExponentOperator is space' do
     let(:exponent_operator_style) { 'space' }
 
-    it 'registers an offenses for exponent operator without spaces' do
+    it 'registers an offense for exponent operator without spaces' do
       expect_offense(<<~RUBY)
         x = a * b**2
                  ^^ Surrounding space missing for operator `**`.
@@ -255,6 +314,21 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
 
       expect_correction(<<~RUBY)
         x = a * b ** 2
+      RUBY
+    end
+  end
+
+  context 'when EnforcedStyleForRationalLiterals is space' do
+    let(:rational_literals_style) { 'space' }
+
+    it 'registers an offense for rational literals without spaces' do
+      expect_offense(<<~RUBY)
+        x = a * b/42r
+                 ^ Surrounding space missing for operator `/`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = a * b / 42r
       RUBY
     end
   end
@@ -441,6 +515,17 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
 
       expect_correction(<<~RUBY)
         x.y = 2
+      RUBY
+    end
+
+    it 'registers an offense and corrects a setter call with implicit array without spaces' do
+      expect_offense(<<~RUBY)
+        x.y=2,3
+           ^ Surrounding space missing for operator `=`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x.y = 2,3
       RUBY
     end
 
@@ -871,17 +956,43 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
       RUBY
     end
 
-    it 'does not register an offenses match operators between `<<` and `+=`' do
+    it 'does not register an offense match operators between `<<` and `+=`' do
       expect_no_offenses(<<~RUBY)
         x  << foo
         yz += bar
       RUBY
     end
 
-    it 'does not register an offenses match operators between `+=` and `<<`' do
+    it 'does not register an offense match operators between `+=` and `<<`' do
       expect_no_offenses(<<~RUBY)
         x  += foo
         yz << bar
+      RUBY
+    end
+
+    it 'registers an offense when operator is followed by aligned << inside a string' do
+      expect_offense(<<~RUBY)
+        x   += foo
+            ^^ Operator `+=` should be surrounded by a single space.
+        'yz << bar'
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x += foo
+        'yz << bar'
+      RUBY
+    end
+
+    it 'registers an offense when operator is preceded by aligned << inside a string' do
+      expect_offense(<<~RUBY)
+        'yz << bar'
+        x   += foo
+            ^^ Operator `+=` should be surrounded by a single space.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        'yz << bar'
+        x += foo
       RUBY
     end
 

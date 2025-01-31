@@ -16,6 +16,8 @@ module RuboCop
       end
 
       def comments_in_range(node)
+        return [] unless node.source_range
+
         start_line = node.source_range.line
         end_line = find_end_line(node)
 
@@ -71,10 +73,13 @@ module RuboCop
             node.else_branch.loc.line
           elsif node.elsif?
             node.each_ancestor(:if).find(&:if?).loc.end.line
+          elsif node.if? && node.parent && parentheses?(node.parent)
+            node.parent.loc.end.line
           end
-        elsif node.block_type? || node.numblock_type?
+        elsif node.any_block_type?
           node.loc.end.line
-        elsif (next_sibling = node.right_sibling) && next_sibling.is_a?(AST::Node)
+        elsif (next_sibling = node.right_sibling) && next_sibling.is_a?(AST::Node) &&
+              next_sibling.source_range
           next_sibling.loc.line
         elsif (parent = node.parent)
           if parent.loc.respond_to?(:end) && parent.loc.end

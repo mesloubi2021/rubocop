@@ -153,7 +153,18 @@ module RuboCop
           return unless duplicated_expressions?(node, heads)
 
           condition_variable = assignable_condition_value(node)
-          return if heads.first.assignment? && condition_variable == heads.first.name.to_s
+
+          head = heads.first
+          if head.respond_to?(:assignment?) && head.assignment?
+            # The `send` node is used instead of the `indexasgn` node, so `name` cannot be used.
+            # https://github.com/rubocop/rubocop-ast/blob/v1.29.0/lib/rubocop/ast/node/indexasgn_node.rb
+            #
+            # FIXME: It would be better to update `RuboCop::AST::OpAsgnNode` or its subclasses to
+            # handle `self.foo ||= value` as a solution, instead of using `head.node_parts[0].to_s`.
+            assigned_value = head.send_type? ? head.receiver.source : head.node_parts[0].to_s
+
+            return if condition_variable == assigned_value
+          end
 
           check_expressions(node, heads, :before_condition)
         end
@@ -192,16 +203,35 @@ module RuboCop
               corrector.remove(range)
               next if inserted_expression
 
-              if insert_position == :after_condition
-                corrector.insert_after(node, "\n#{expression.source}")
+              if node.parent&.assignment?
+                correct_assignment(corrector, node, expression, insert_position)
               else
-                corrector.insert_before(node, "#{expression.source}\n")
+                correct_no_assignment(corrector, node, expression, insert_position)
               end
+
               inserted_expression = true
             end
           end
         end
         # rubocop:enable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+
+        def correct_assignment(corrector, node, expression, insert_position)
+          if insert_position == :after_condition
+            assignment = node.parent.source_range.with(end_pos: node.source_range.begin_pos)
+            corrector.remove(assignment)
+            corrector.insert_after(node, "\n#{assignment.source}#{expression.source}")
+          else
+            corrector.insert_before(node.parent, "#{expression.source}\n")
+          end
+        end
+
+        def correct_no_assignment(corrector, node, expression, insert_position)
+          if insert_position == :after_condition
+            corrector.insert_after(node, "\n#{expression.source}")
+          else
+            corrector.insert_before(node, "#{expression.source}\n")
+          end
+        end
 
         def last_child_of_parent?(node)
           return true unless (parent = node.parent)

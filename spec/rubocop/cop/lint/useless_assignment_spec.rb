@@ -321,9 +321,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         ^^^ Useless assignment to variable - `foo`. Use `||` instead of `||=`.
       RUBY
 
-      expect_correction(<<~RUBY)
-        foo || 1
-      RUBY
+      expect_no_corrections
     end
   end
 
@@ -538,6 +536,21 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is reassigned before a block' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = 1
+          ^^^ Useless assignment to variable - `foo`.
+          foo = 2
+          bar {
+            foo = 3
+          }
+        end
+      RUBY
+    end
+  end
+
   context "when a variable is reassigned in loop body but won't " \
           'be referenced either next iteration or loop condition' do
     it 'registers an offense' do
@@ -649,7 +662,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context 'when a unreferenced variable is reassigned in same branch ' \
+  context 'when an unreferenced variable is reassigned in same branch ' \
           'and referenced after the branching' do
     it 'registers an offense for the unreferenced assignment' do
       expect_offense(<<~RUBY)
@@ -850,7 +863,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context 'when a variable is reassigned and unreferenced in a if branch ' \
+  context 'when a variable is reassigned and unreferenced in an if branch ' \
           'while the variable is referenced in the paired else branch' do
     it 'registers an offense for the reassignment in the if branch' do
       expect_offense(<<~RUBY)
@@ -904,7 +917,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context "when there's an unreferenced reassignment in a if branch " \
+  context "when there's an unreferenced reassignment in an if branch " \
           'while the variable is referenced in the paired elsif branch' do
     it 'registers an offense for the reassignment in the if branch' do
       expect_offense(<<~RUBY)
@@ -936,7 +949,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context "when there's an unreferenced reassignment in a if branch " \
+  context "when there's an unreferenced reassignment in an if branch " \
           'while the variable is referenced in a case branch ' \
           'in the paired else branch' do
     it 'registers an offense for the reassignment in the if branch' do
@@ -975,7 +988,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context 'when an assignment in a if branch is referenced in another if branch' do
+  context 'when an assignment in an if branch is referenced in another if branch' do
     it 'accepts' do
       expect_no_offenses(<<~RUBY)
         def some_method(flag_a, flag_b)
@@ -1034,7 +1047,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context 'when a unreferenced variable is reassigned ' \
+  context 'when an unreferenced variable is reassigned ' \
           'on the left side of && and referenced after the &&' do
     it 'registers an offense for the unreferenced assignment' do
       expect_offense(<<~RUBY)
@@ -1056,7 +1069,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context 'when a unreferenced variable is reassigned ' \
+  context 'when an unreferenced variable is reassigned ' \
           'on the right side of && and referenced after the &&' do
     it 'accepts' do
       expect_no_offenses(<<~RUBY)
@@ -1149,12 +1162,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         end
       RUBY
 
-      expect_correction(<<~RUBY)
-        def some_method
-          foo = do_something_returns_object_or_nil
-          foo || 1
-        end
-      RUBY
+      expect_no_corrections
     end
   end
 
@@ -1169,13 +1177,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         end
       RUBY
 
-      expect_correction(<<~RUBY)
-        def some_method
-          foo = do_something_returns_object_or_nil
-          foo || 1
-          some_return_value
-        end
-      RUBY
+      expect_no_corrections
     end
   end
 
@@ -1198,6 +1200,36 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is assigned as an argument to a method given to multiple assignment' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          a, b = func(c = 3)
+                      ^ Useless assignment to variable - `c`.
+          [a, b]
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          a, b = func(3)
+          [a, b]
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is assigned as an argument to a method given to multiple assignment and later used' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          a, b = func(c = 3)
+          [a, b, c]
+        end
+      RUBY
+    end
+  end
+
   context 'when variables are assigned using chained assignment and remain unreferenced' do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
@@ -1210,6 +1242,23 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
       expect_correction(<<~RUBY)
         def some_method
           bar = do_something
+        end
+      RUBY
+    end
+  end
+
+  context 'when same name variables are assigned using chained assignment' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = foo = do_something
+          ^^^ Useless assignment to variable - `foo`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          foo = do_something
         end
       RUBY
     end
@@ -1718,6 +1767,56 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a pattern match variable is assigned with `in` and referenced in a block', :ruby27 do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          foo in { bar: bar }
+          baz { bar -= 1 }
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `in` and unreferenced in a block', :ruby27 do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo in { bar: bar }
+          baz { qux -= 1 }
+                ^^^ Useless assignment to variable - `qux`. Use `-` instead of `-=`.
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `=>` and referenced in a block', :ruby30 do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          foo => { bar: bar }
+          baz { bar -= 1 }
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `=>` and unreferenced in a block', :ruby30 do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo => { bar: bar }
+          baz { qux -= 1 }
+                ^^^ Useless assignment to variable - `qux`. Use `-` instead of `-=`.
+          foo
+        end
+      RUBY
+    end
+  end
+
   context 'when a variable is assigned in begin and referenced outside' do
     it 'accepts' do
       expect_no_offenses(<<~RUBY)
@@ -1802,7 +1901,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
-  context 'when a optional keyword method argument is not used' do
+  context 'when an optional keyword method argument is not used' do
     it 'accepts' do
       expect_no_offenses(<<~RUBY)
         def some_method(name: value)

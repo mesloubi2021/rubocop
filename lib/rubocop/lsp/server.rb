@@ -15,14 +15,18 @@ require_relative 'runtime'
 # https://github.com/standardrb/standard/blob/main/LICENSE.txt
 #
 module RuboCop
-  module Lsp
+  module LSP
     # Language Server Protocol of RuboCop.
     # @api private
     class Server
       def initialize(config_store)
+        $PROGRAM_NAME = "rubocop --lsp #{ConfigFinder.project_root}"
+
+        RuboCop::LSP.enable
+
         @reader = LanguageServer::Protocol::Transport::Io::Reader.new($stdin)
         @writer = LanguageServer::Protocol::Transport::Io::Writer.new($stdout)
-        @runtime = RuboCop::Lsp::Runtime.new(config_store)
+        @runtime = RuboCop::LSP::Runtime.new(config_store)
         @routes = Routes.new(self)
       end
 

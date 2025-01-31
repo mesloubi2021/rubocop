@@ -3,7 +3,8 @@
 module RuboCop
   module Cop
     module Style
-      # Checks for uses a redundant current directory in path.
+      # Checks for paths given to `require_relative` that start with
+      # the current directory (`./`), which can be omitted.
       #
       # @example
       #
@@ -18,14 +19,15 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Remove the redundant current directory path.'
+        RESTRICT_ON_SEND = %i[require_relative].freeze
         CURRENT_DIRECTORY_PATH = './'
 
         def on_send(node)
-          return unless node.method?(:require_relative)
-          return unless node.first_argument.str_content&.start_with?(CURRENT_DIRECTORY_PATH)
-          return unless (index = node.first_argument.source.index(CURRENT_DIRECTORY_PATH))
+          return unless (first_argument = node.first_argument)
+          return unless first_argument.str_content&.start_with?(CURRENT_DIRECTORY_PATH)
+          return unless (index = first_argument.source.index(CURRENT_DIRECTORY_PATH))
 
-          begin_pos = node.first_argument.source_range.begin.begin_pos + index
+          begin_pos = first_argument.source_range.begin.begin_pos + index
           range = range_between(begin_pos, begin_pos + 2)
 
           add_offense(range) do |corrector|

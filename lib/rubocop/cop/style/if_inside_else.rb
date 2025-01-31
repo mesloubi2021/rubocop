@@ -59,7 +59,6 @@ module RuboCop
       #   end
       #
       class IfInsideElse < Base
-        include IgnoredNode
         include RangeHelp
         extend AutoCorrector
 
@@ -71,7 +70,7 @@ module RuboCop
 
           else_branch = node.else_branch
 
-          return unless else_branch&.if_type? && else_branch&.if?
+          return unless else_branch&.if_type? && else_branch.if?
           return if allow_if_modifier_in_else_branch?(else_branch)
 
           add_offense(else_branch.loc.keyword) do |corrector|

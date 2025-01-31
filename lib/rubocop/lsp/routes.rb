@@ -12,12 +12,17 @@ require_relative 'severity'
 # https://github.com/standardrb/standard/blob/main/LICENSE.txt
 #
 module RuboCop
-  module Lsp
+  module LSP
     # Routes for Language Server Protocol of RuboCop.
     # @api private
     class Routes
+      CONFIGURATION_FILE_PATTERNS = [
+        RuboCop::ConfigFinder::DOTFILE,
+        RuboCop::CLI::Command::AutoGenerateConfig::AUTO_GENERATED_FILE
+      ].freeze
+
       def self.handle(name, &block)
-        define_method("handle_#{name}", &block)
+        define_method(:"handle_#{name}", &block)
       end
 
       private_class_method :handle
@@ -45,10 +50,6 @@ module RuboCop
           result: LanguageServer::Protocol::Interface::InitializeResult.new(
             capabilities: LanguageServer::Protocol::Interface::ServerCapabilities.new(
               document_formatting_provider: true,
-              diagnostic_provider: LanguageServer::Protocol::Interface::DiagnosticOptions.new(
-                inter_file_dependencies: false,
-                workspace_diagnostics: false
-              ),
               text_document_sync: LanguageServer::Protocol::Interface::TextDocumentSyncOptions.new(
                 change: LanguageServer::Protocol::Constant::TextDocumentSyncKind::FULL,
                 open_close: true
@@ -60,8 +61,9 @@ module RuboCop
 
       handle 'initialized' do |_request|
         version = RuboCop::Version::STRING
+        yjit = Object.const_defined?('RubyVM::YJIT') && RubyVM::YJIT.enabled? ? ' +YJIT' : ''
 
-        Logger.log("RuboCop #{version} language server initialized, PID #{Process.pid}")
+        Logger.log("RuboCop #{version} language server#{yjit} initialized, PID #{Process.pid}")
       end
 
       handle 'shutdown' do |request|
@@ -70,12 +72,6 @@ module RuboCop
           @server.write(id: request[:id], result: nil)
           Logger.log('Exiting...')
         end
-      end
-
-      handle 'textDocument/diagnostic' do |request|
-        doc = request[:params][:textDocument]
-        result = diagnostic(doc[:uri], doc[:text])
-        @server.write(result)
       end
 
       handle 'textDocument/didChange' do |request|
@@ -105,7 +101,7 @@ module RuboCop
 
       handle 'workspace/didChangeWatchedFiles' do |request|
         changed = request[:params][:changes].any? do |change|
-          change[:uri].end_with?(RuboCop::ConfigFinder::DOTFILE)
+          CONFIGURATION_FILE_PATTERNS.any? { |path| change[:uri].end_with?(path) }
         end
 
         if changed
@@ -126,6 +122,12 @@ module RuboCop
         end
 
         uri = request[:params][:arguments][0][:uri]
+        formatted = nil
+
+        # The `workspace/executeCommand` is an LSP method triggered by intentional user actions,
+        # so the user's intention for autocorrection is respected.
+        LSP.disable { formatted = format_file(uri, command: command) }
+
         @server.write(
           id: request[:id],
           method: 'workspace/applyEdit',
@@ -133,7 +135,7 @@ module RuboCop
             label: label,
             edit: {
               changes: {
-                uri => format_file(uri, command: command)
+                uri => formatted
               }
             }
           }
@@ -207,39 +209,18 @@ module RuboCop
 
       def diagnostic(file_uri, text)
         @text_cache[file_uri] = text
-        offenses = @server.offenses(remove_file_protocol_from(file_uri), text)
-        diagnostics = offenses.map { |offense| to_diagnostic(offense) }
 
         {
           method: 'textDocument/publishDiagnostics',
           params: {
             uri: file_uri,
-            diagnostics: diagnostics
+            diagnostics: @server.offenses(remove_file_protocol_from(file_uri), text)
           }
         }
       end
 
       def remove_file_protocol_from(uri)
         uri.delete_prefix('file://')
-      end
-
-      def to_diagnostic(offense)
-        code = offense[:cop_name]
-        message = offense[:message]
-        loc = offense[:location]
-        rubocop_severity = offense[:severity]
-        severity = Severity.find_by(rubocop_severity)
-
-        {
-          code: code, message: message, range: to_range(loc), severity: severity, source: 'rubocop'
-        }
-      end
-
-      def to_range(location)
-        {
-          start: { character: location[:start_column] - 1, line: location[:start_line] - 1 },
-          end: { character: location[:last_column] - 1, line: location[:last_line] - 1 }
-        }
       end
     end
   end

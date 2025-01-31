@@ -80,13 +80,13 @@ module RuboCop
 
     # Expose the `frozen_string_literal` value coerced to a boolean if possible.
     #
-    # @return [Boolean] if value is `true` or `false`
+    # @return [Boolean] if value is `true` or `false` in any case
     # @return [nil] if frozen_string_literal comment isn't found
     # @return [String] if comment is found but isn't true or false
     def frozen_string_literal
       return unless (setting = extract_frozen_string_literal)
 
-      case setting
+      case setting.downcase
       when 'true'  then true
       when 'false' then false
       else
@@ -268,7 +268,7 @@ module RuboCop
 
       # Rewrite the comment without a given token type
       def without(type)
-        if @comment.match?(/\A#\s*#{self.class::KEYWORDS[type.to_sym]}/)
+        if @comment.match?(/\A#\s*#{self.class::KEYWORDS[type.to_sym]}/io)
           ''
         else
           @comment
@@ -283,7 +283,7 @@ module RuboCop
       # is the only text in the comment.
       #
       # Case-insensitive and dashes/underscores are acceptable.
-      # @see https://github.com/ruby/ruby/blob/78b95b4/parse.y#L7134-L7138
+      # @see https://github.com/ruby/ruby/blob/78b95b49f8/parse.y#L7134-L7138
       def extract_frozen_string_literal
         extract(/\A\s*#\s*#{KEYWORDS[:frozen_string_literal]}:\s*#{TOKEN}\s*\z/io)
       end

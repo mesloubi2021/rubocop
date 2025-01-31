@@ -29,36 +29,36 @@ module RuboCop
       #   end
       #
       #   # allowed
-      #     # Class without body
+      #   # Class without body
+      #   class Person
+      #   end
+      #
+      #   # Namespace - A namespace can be a class or a module
+      #   # Containing a class
+      #   module Namespace
+      #     # Description/Explanation of Person class
       #     class Person
+      #       # ...
+      #     end
+      #   end
+      #
+      #   # Containing constant visibility declaration
+      #   module Namespace
+      #     class Private
       #     end
       #
-      #     # Namespace - A namespace can be a class or a module
-      #     # Containing a class
-      #     module Namespace
-      #       # Description/Explanation of Person class
-      #       class Person
-      #         # ...
-      #       end
-      #     end
+      #     private_constant :Private
+      #   end
       #
-      #     # Containing constant visibility declaration
-      #     module Namespace
-      #       class Private
-      #       end
+      #   # Containing constant definition
+      #   module Namespace
+      #     Public = Class.new
+      #   end
       #
-      #       private_constant :Private
-      #     end
-      #
-      #     # Containing constant definition
-      #     module Namespace
-      #       Public = Class.new
-      #     end
-      #
-      #     # Macro calls
-      #     module Namespace
-      #       extend Foo
-      #     end
+      #   # Macro calls
+      #   module Namespace
+      #     extend Foo
+      #   end
       #
       # @example AllowedConstants: ['ClassMethods']
       #
@@ -67,7 +67,7 @@ module RuboCop
       #      module ClassMethods
       #        # ...
       #      end
-      #     end
+      #    end
       #
       class Documentation < Base
         include DocumentationComment
@@ -186,7 +186,7 @@ module RuboCop
         def qualify_const(node)
           return if node.nil?
 
-          if node.cbase_type? || node.self_type? || node.call_type? || node.variable?
+          if node.type?(:cbase, :self, :call) || node.variable?
             node.source
           else
             [qualify_const(node.namespace), node.short_name].compact

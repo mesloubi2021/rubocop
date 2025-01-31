@@ -135,7 +135,7 @@ module RuboCop
 
           parent = next_sibling.parent
 
-          parent&.if_type? && parent&.else?
+          parent&.if_type? && parent.else?
         end
 
         def next_sibling_empty_or_guard_clause?(node)
@@ -200,7 +200,7 @@ module RuboCop
           parent = node.parent
           return false unless parent
 
-          parent.begin_type? && parent.single_line?
+          parent.begin_type? && same_line?(node, node.right_sibling)
         end
 
         # SimpleCov excludes code from the coverage report by wrapping it in `# :nocov:`:

@@ -33,24 +33,20 @@ module RuboCop
           branch.begin_type? ? Array(branch).last : branch
         end
 
-        # rubocop:disable Metrics/AbcSize
         def lhs(node)
           case node.type
           when :send
             lhs_for_send(node)
-          when :op_asgn
-            "#{node.children[0].source} #{node.children[1]}= "
-          when :and_asgn, :or_asgn
-            "#{node.children[0].source} #{node.loc.operator.source} "
+          when :op_asgn, :and_asgn, :or_asgn
+            "#{node.assignment_node.source} #{node.operator}= "
           when :casgn
             lhs_for_casgn(node)
           when *ConditionalAssignment::VARIABLE_ASSIGNMENT_TYPES
-            "#{node.children[0]} = "
+            "#{node.name} = "
           else
             node.source
           end
         end
-        # rubocop:enable Metrics/AbcSize
 
         def indent(cop, source)
           conf = cop.config.for_cop(END_ALIGNMENT)
@@ -73,7 +69,7 @@ module RuboCop
           elsif_branches << node.if_branch
 
           else_branch = node.else_branch
-          if else_branch&.if_type? && else_branch&.elsif?
+          if else_branch&.if_type? && else_branch.elsif?
             expand_elsif(else_branch, elsif_branches)
           else
             elsif_branches << else_branch
@@ -94,11 +90,12 @@ module RuboCop
         end
 
         def lhs_for_casgn(node)
-          namespace = node.children[0]
-          if namespace.nil? || namespace.cbase_type?
-            "#{namespace&.source}#{node.children[1]} = "
+          if node.namespace.nil?
+            "#{node.name} = "
+          elsif node.namespace.cbase_type?
+            "::#{node.name} = "
           else
-            "#{namespace.source}::#{node.children[1]} = "
+            "#{node.namespace.const_name}::#{node.name} = "
           end
         end
 
@@ -110,13 +107,13 @@ module RuboCop
           parent = node.parent
           return true unless parent
 
-          !(parent.mlhs_type? || parent.resbody_type?)
+          !parent.type?(:mlhs, :resbody)
         end
       end
 
       # Check for `if` and `case` statements where each branch is used for
-      # assignment to the same variable when using the return of the
-      # condition can be used instead.
+      # both the assignment and comparison of the same variable
+      # when using the return of the condition can be used instead.
       #
       # @example EnforcedStyle: assign_to_condition (default)
       #   # bad
@@ -210,11 +207,10 @@ module RuboCop
       class ConditionalAssignment < Base
         include ConditionalAssignmentHelper
         include ConfigurableEnforcedStyle
-        include IgnoredNode
         extend AutoCorrector
 
         MSG = 'Use the return of the conditional for variable assignment and comparison.'
-        ASSIGN_TO_CONDITION_MSG = 'Assign variables inside of conditionals'
+        ASSIGN_TO_CONDITION_MSG = 'Assign variables inside of conditionals.'
         VARIABLE_ASSIGNMENT_TYPES = %i[casgn cvasgn gvasgn ivasgn lvasgn].freeze
         ASSIGNMENT_TYPES = VARIABLE_ASSIGNMENT_TYPES + %i[and_asgn or_asgn op_asgn masgn].freeze
         LINE_LENGTH = 'Layout/LineLength'
@@ -233,7 +229,7 @@ module RuboCop
         PATTERN
 
         ASSIGNMENT_TYPES.each do |type|
-          define_method "on_#{type}" do |node|
+          define_method :"on_#{type}" do |node|
             return if part_of_ignored_node?(node)
             return if node.parent&.shorthand_asgn?
 
@@ -313,22 +309,24 @@ module RuboCop
         end
 
         def allowed_single_line?(branches)
-          single_line_conditions_only? && branches.any?(&:begin_type?)
+          single_line_conditions_only? && branches.compact.any?(&:begin_type?)
         end
 
         def assignment_node(node)
-          *_variable, assignment = *node
+          assignment = node.send_type? ? node.last_argument : node.expression
 
           # ignore pseudo-assignments without rhs in for nodes
           return if node.parent&.for_type?
 
-          assignment, = *assignment if assignment.begin_type? && assignment.children.one?
+          if assignment.begin_type? && assignment.children.one?
+            assignment = assignment.children.first
+          end
 
           assignment
         end
 
         def move_assignment_outside_condition(corrector, node)
-          if node.case_type? || node.case_match_type?
+          if node.type?(:case, :case_match)
             CaseCorrector.correct(corrector, self, node)
           elsif node.ternary?
             TernaryCorrector.correct(corrector, node)
@@ -338,11 +336,11 @@ module RuboCop
         end
 
         def move_assignment_inside_condition(corrector, node)
-          *_assignment, condition = *node
+          condition = node.send_type? ? node.last_argument : node.expression
 
           if ternary_condition?(condition)
             TernaryCorrector.move_assignment_inside_condition(corrector, node)
-          elsif condition.case_type? || condition.case_match_type?
+          elsif condition.type?(:case, :case_match)
             CaseCorrector.move_assignment_inside_condition(corrector, node)
           elsif condition.if_type?
             IfCorrector.move_assignment_inside_condition(corrector, node)
@@ -447,6 +445,8 @@ module RuboCop
           end
 
           [condition.loc.else, condition.loc.end].each do |loc|
+            next unless loc
+
             corrector.remove_preceding(loc, loc.column - column)
           end
         end
@@ -459,10 +459,9 @@ module RuboCop
         end
 
         def assignment(node)
-          *_, condition = *node
-          Parser::Source::Range.new(node.source_range.source_buffer,
-                                    node.source_range.begin_pos,
-                                    condition.source_range.begin_pos)
+          condition = node.send_type? ? node.last_argument : node.expression
+
+          node.source_range.begin.join(condition.source_range.begin)
         end
 
         def correct_if_branches(corrector, cop, node)
@@ -507,7 +506,7 @@ module RuboCop
           end
 
           def move_assignment_inside_condition(corrector, node)
-            *_var, rhs = *node
+            rhs = node.send_type? ? node.last_argument : node.expression
             if_branch, else_branch = extract_branches(node)
             assignment = assignment(node)
 
@@ -534,12 +533,12 @@ module RuboCop
           end
 
           def element_assignment?(node)
-            node.send_type? && node.method_name != :[]=
+            node.send_type? && !node.method?(:[]=)
           end
 
           def extract_branches(node)
-            *_var, rhs = *node
-            condition, = *rhs if rhs.begin_type? && rhs.children.one?
+            rhs = node.send_type? ? node.last_argument : node.expression
+            condition = rhs.children.first if rhs.begin_type? && rhs.children.one?
             _condition, if_branch, else_branch = *(condition || rhs)
 
             [if_branch, else_branch]
@@ -568,7 +567,7 @@ module RuboCop
 
           def move_assignment_inside_condition(corrector, node)
             column = node.source_range.column
-            *_var, condition = *node
+            condition = node.send_type? ? node.last_argument : node.expression
             assignment = assignment(node)
 
             corrector.remove(assignment)
@@ -619,7 +618,7 @@ module RuboCop
 
           def move_assignment_inside_condition(corrector, node)
             column = node.source_range.column
-            *_var, condition = *node
+            condition = node.send_type? ? node.last_argument : node.expression
             assignment = assignment(node)
 
             corrector.remove(assignment)

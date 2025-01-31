@@ -86,7 +86,7 @@ module RuboCop
 
         def extract_block_name(def_node)
           if def_node.block_argument?
-            def_node.arguments.last.name
+            def_node.last_argument.name
           else
             'block'
           end
@@ -123,11 +123,11 @@ module RuboCop
         end
 
         def call_like?(node)
-          node.call_type? || node.zsuper_type? || node.super_type?
+          node.type?(:call, :zsuper, :super)
         end
 
         def insert_argument(node, corrector, block_name)
-          last_arg = node.arguments.last
+          last_arg = node.last_argument
           arg_range = range_with_surrounding_comma(last_arg.source_range, :right)
           replacement = " &#{block_name}"
           replacement = ",#{replacement}" unless arg_range.source.end_with?(',')

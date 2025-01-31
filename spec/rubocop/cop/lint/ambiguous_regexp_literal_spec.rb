@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# FIXME: https://github.com/ruby/prism/issues/2513
 RSpec.describe RuboCop::Cop::Lint::AmbiguousRegexpLiteral, :config do
   shared_examples 'with a regexp literal in the first argument' do
     context 'without parentheses' do
@@ -179,7 +180,7 @@ RSpec.describe RuboCop::Cop::Lint::AmbiguousRegexpLiteral, :config do
     end
   end
 
-  context 'Ruby <= 2.7', :ruby27 do
+  context 'Ruby <= 2.7', :ruby27, unsupported_on: :prism do
     include_examples 'with a regexp literal in the first argument'
   end
 

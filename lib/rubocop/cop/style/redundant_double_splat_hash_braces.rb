@@ -29,10 +29,10 @@ module RuboCop
         def on_hash(node)
           return if node.pairs.empty? || node.pairs.any?(&:hash_rocket?)
           return unless (parent = node.parent)
-          return unless parent.call_type? || parent.kwsplat_type?
+          return unless parent.type?(:call, :kwsplat)
           return unless mergeable?(parent)
           return unless (kwsplat = node.each_ancestor(:kwsplat).first)
-          return if allowed_double_splat_receiver?(kwsplat)
+          return if !node.braces? || allowed_double_splat_receiver?(kwsplat)
 
           add_offense(kwsplat) do |corrector|
             autocorrect(corrector, node, kwsplat)
@@ -44,7 +44,7 @@ module RuboCop
 
         def allowed_double_splat_receiver?(kwsplat)
           first_child = kwsplat.children.first
-          return true if first_child.block_type? || first_child.numblock_type?
+          return true if first_child.any_block_type?
           return false unless first_child.call_type?
 
           root_receiver = root_receiver(first_child)
@@ -73,7 +73,7 @@ module RuboCop
         end
 
         def select_merge_method_nodes(kwsplat)
-          extract_send_methods(kwsplat).select do |node|
+          kwsplat.each_descendant(:call).select do |node|
             mergeable?(node)
           end
         end
@@ -89,7 +89,7 @@ module RuboCop
         def autocorrect_merge_methods(corrector, merge_methods, kwsplat)
           range = range_of_merge_methods(merge_methods)
 
-          new_kwsplat_arguments = extract_send_methods(kwsplat).map do |descendant|
+          new_kwsplat_arguments = kwsplat.each_descendant(:call).map do |descendant|
             convert_to_new_arguments(descendant)
           end
           new_source = new_kwsplat_arguments.compact.reverse.unshift('').join(', ')
@@ -102,10 +102,6 @@ module RuboCop
           end_merge_method = merge_methods.first
 
           begin_merge_method.loc.dot.begin.join(end_merge_method.source_range.end)
-        end
-
-        def extract_send_methods(kwsplat)
-          kwsplat.each_descendant(:send, :csend)
         end
 
         def convert_to_new_arguments(node)

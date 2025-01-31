@@ -48,29 +48,33 @@ module RuboCop
 
       def register_offense(node, message, replacement) # rubocop:disable Metrics/AbcSize
         add_offense(node.value, message: message) do |corrector|
-          if (def_node = def_node_that_require_parentheses(node))
-            last_argument = def_node.last_argument
-            if last_argument.nil? || !last_argument.hash_type?
-              next corrector.replace(node, replacement)
-            end
-
-            white_spaces = range_between(def_node.selector.end_pos,
-                                         def_node.first_argument.source_range.begin_pos)
-            corrector.replace(white_spaces, '(')
-            corrector.insert_after(last_argument, ')') if node == last_argument.pairs.last
-          end
           corrector.replace(node, replacement)
+
+          next unless (def_node = def_node_that_require_parentheses(node))
+
+          last_argument = def_node.last_argument
+          if last_argument.nil? || !last_argument.hash_type?
+            next corrector.replace(node, replacement)
+          end
+
+          white_spaces = range_between(def_node.selector.end_pos,
+                                       def_node.first_argument.source_range.begin_pos)
+          next if node.parent.braces?
+
+          corrector.replace(white_spaces, '(')
+          corrector.insert_after(last_argument, ')') if node == last_argument.pairs.last
         end
       end
 
       def ignore_mixed_hash_shorthand_syntax?(hash_node)
-        target_ruby_version <= 3.0 || enforced_shorthand_syntax != 'consistent' ||
+        target_ruby_version <= 3.0 ||
+          !%w[consistent either_consistent].include?(enforced_shorthand_syntax) ||
           !hash_node.hash_type?
       end
 
       def ignore_hash_shorthand_syntax?(pair_node)
         target_ruby_version <= 3.0 || enforced_shorthand_syntax == 'either' ||
-          enforced_shorthand_syntax == 'consistent' ||
+          %w[consistent either_consistent].include?(enforced_shorthand_syntax) ||
           !pair_node.parent.hash_type?
       end
 
@@ -82,7 +86,7 @@ module RuboCop
         return true if !node.key.sym_type? || require_hash_value_for_around_hash_literal?(node)
 
         hash_value = node.value
-        return true unless hash_value.send_type? || hash_value.lvar_type?
+        return true unless hash_value.type?(:send, :lvar)
 
         hash_key_source != hash_value.source || hash_key_source.end_with?('!', '?')
       end
@@ -105,7 +109,7 @@ module RuboCop
         return if dispatch_node.parent && parentheses?(dispatch_node.parent)
         return if last_expression?(dispatch_node) && !method_dispatch_as_argument?(dispatch_node)
 
-        def_node = node.each_ancestor(:send, :csend, :super, :yield).first
+        def_node = node.each_ancestor(:call, :super, :yield).first
 
         DefNode.new(def_node) unless def_node && def_node.arguments.empty?
       end
@@ -113,7 +117,7 @@ module RuboCop
 
       def find_ancestor_method_dispatch_node(node)
         return unless (ancestor = node.parent.parent)
-        return unless ancestor.call_type? || ancestor.super_type? || ancestor.yield_type?
+        return unless ancestor.type?(:call, :super, :yield)
         return if brackets?(ancestor)
 
         ancestor
@@ -146,7 +150,7 @@ module RuboCop
         parent = method_dispatch_node.parent
         return false unless parent
 
-        parent.call_type? || parent.super_type? || parent.yield_type?
+        parent.type?(:call, :super, :yield)
       end
 
       def breakdown_value_types_of_hash(hash_node)
@@ -167,6 +171,11 @@ module RuboCop
 
       def hash_with_values_that_cant_be_omitted?(hash_value_type_breakdown)
         hash_value_type_breakdown[:value_needed]&.any?
+      end
+
+      def ignore_explicit_omissible_hash_shorthand_syntax?(hash_value_type_breakdown)
+        hash_value_type_breakdown.keys == [:value_omittable] &&
+          enforced_shorthand_syntax == 'either_consistent'
       end
 
       def each_omitted_value_pair(hash_value_type_breakdown, &block)
@@ -195,6 +204,7 @@ module RuboCop
 
       def no_mixed_shorthand_syntax_check(hash_value_type_breakdown)
         return if hash_with_values_that_cant_be_omitted?(hash_value_type_breakdown)
+        return if ignore_explicit_omissible_hash_shorthand_syntax?(hash_value_type_breakdown)
 
         each_omittable_value_pair(hash_value_type_breakdown) do |pair_node|
           hash_key_source = pair_node.key.source

@@ -25,16 +25,21 @@ module RuboCop
 
         MSG = 'Put method call on a separate line if chained to a single line block.'
 
+        def self.autocorrect_incompatible_with
+          [Style::MapToHash]
+        end
+
         def on_send(node)
           range = offending_range(node)
           add_offense(range) { |corrector| corrector.insert_before(range, "\n") } if range
         end
+        alias on_csend on_send
 
         private
 
         def offending_range(node)
           receiver = node.receiver
-          return unless receiver&.block_type?
+          return unless receiver&.any_block_type?
 
           receiver_location = receiver.loc
           closing_block_delimiter_line_num = receiver_location.end.line

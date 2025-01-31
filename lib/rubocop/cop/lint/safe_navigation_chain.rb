@@ -12,15 +12,11 @@ module RuboCop
       # @example
       #
       #   # bad
-      #
       #   x&.foo.bar
       #   x&.foo + bar
       #   x&.foo[bar]
       #
-      # @example
-      #
       #   # good
-      #
       #   x&.foo&.bar
       #   x&.foo || bar
       class SafeNavigationChain < Base
@@ -37,18 +33,19 @@ module RuboCop
         def_node_matcher :bad_method?, <<~PATTERN
           {
             (send $(csend ...) $_ ...)
-            (send $({block numblock} (csend ...) ...) $_ ...)
+            (send $(any_block (csend ...) ...) $_ ...)
           }
         PATTERN
 
         def on_send(node)
+          return unless require_safe_navigation?(node)
+
           bad_method?(node) do |safe_nav, method|
             return if nil_methods.include?(method) || PLUS_MINUS_METHODS.include?(node.method_name)
 
-            location =
-              Parser::Source::Range.new(node.source_range.source_buffer,
-                                        safe_nav.source_range.end_pos,
-                                        node.source_range.end_pos)
+            begin_range = node.loc.dot || safe_nav.source_range.end
+            location = begin_range.join(node.source_range.end)
+
             add_offense(location) do |corrector|
               autocorrect(corrector, offense_range: location, send_node: node)
             end
@@ -56,6 +53,13 @@ module RuboCop
         end
 
         private
+
+        def require_safe_navigation?(node)
+          parent = node.parent
+          return true unless parent&.and_type?
+
+          parent.rhs != node || parent.lhs.receiver != parent.rhs.receiver
+        end
 
         # @param [Parser::Source::Range] offense_range
         # @param [RuboCop::AST::SendNode] send_node
@@ -93,11 +97,18 @@ module RuboCop
         end
 
         def require_parentheses?(send_node)
+          return true if operator_inside_hash?(send_node)
           return false unless send_node.comparison_method?
           return false unless (node = send_node.parent)
 
           (node.respond_to?(:logical_operator?) && node.logical_operator?) ||
             (node.respond_to?(:comparison_method?) && node.comparison_method?)
+        end
+
+        def operator_inside_hash?(send_node)
+          # If an operator call (without a dot) is inside a hash, it needs
+          # to be parenthesized when converted to safe navigation.
+          send_node.parent&.pair_type? && !send_node.loc.dot
         end
       end
     end

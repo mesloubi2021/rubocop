@@ -14,25 +14,15 @@ module RuboCop
       # @example
       #
       #   # bad
-      #
       #   format('A value: %s and another: %i', a_value)
       #
-      # @example
-      #
       #   # good
-      #
       #   format('A value: %s and another: %i', a_value, another)
       #
-      # @example
-      #
       #   # bad
-      #
       #   format('Unnumbered format: %s and numbered: %2$s', a_value, another)
       #
-      # @example
-      #
       #   # good
-      #
       #   format('Numbered format: %1$s and numbered %2$s', a_value, another)
       class FormatParameterMismatch < Base
         # http://rubular.com/r/CvpbxkcTzy
@@ -83,7 +73,7 @@ module RuboCop
 
           first_arg = node.first_argument
           return false if num_of_expected_fields.zero? &&
-                          (first_arg.dstr_type? || first_arg.array_type?)
+                          first_arg.type?(:dstr, :array)
 
           matched_arguments_count?(num_of_expected_fields, num_of_format_args)
         end

@@ -3,7 +3,7 @@
 module RuboCop
   module Cop
     module Style
-      # Checks for exact regexp match inside Regexp literals.
+      # Checks for exact regexp match inside `Regexp` literals.
       #
       # @example
       #
@@ -30,7 +30,7 @@ module RuboCop
 
         # @!method exact_regexp_match(node)
         def_node_matcher :exact_regexp_match, <<~PATTERN
-          (send
+          (call
             _ {:=~ :=== :!~ :match :match?}
             (regexp
               (str $_)
@@ -38,17 +38,18 @@ module RuboCop
         PATTERN
 
         def on_send(node)
+          return unless (receiver = node.receiver)
           return unless (regexp = exact_regexp_match(node))
-
-          parsed_regexp = Regexp::Parser.parse(regexp)
+          return unless (parsed_regexp = parse_regexp(regexp))
           return unless exact_match_pattern?(parsed_regexp)
 
-          prefer = "#{node.receiver.source} #{new_method(node)} '#{parsed_regexp[1].text}'"
+          prefer = "#{receiver.source} #{new_method(node)} '#{parsed_regexp[1].text}'"
 
           add_offense(node, message: format(MSG, prefer: prefer)) do |corrector|
             corrector.replace(node, prefer)
           end
         end
+        alias on_csend on_send
 
         private
 

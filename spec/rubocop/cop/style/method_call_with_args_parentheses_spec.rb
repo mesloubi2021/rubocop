@@ -88,7 +88,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for method call without parens' do
+    it 'registers an offense for method call without parens' do
       expect_offense(<<~RUBY)
         top.test a, b
         ^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
@@ -100,7 +100,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
     end
 
     context 'when using safe navigation operator' do
-      it 'register an offense for method call without parens' do
+      it 'registers an offense for method call without parens' do
         expect_offense(<<~RUBY)
           top&.test a, b
           ^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
@@ -112,7 +112,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       end
     end
 
-    it 'register an offense for non-receiver method call without parens' do
+    it 'registers an offense for non-receiver method call without parens' do
       expect_offense(<<~RUBY)
         def foo
           test a, b
@@ -127,7 +127,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for methods starting with capital without parens' do
+    it 'registers an offense for methods starting with capital without parens' do
       expect_offense(<<~RUBY)
         def foo
           Test a, b
@@ -142,34 +142,27 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for superclass call without parens' do
-      expect_offense(<<~RUBY)
+    it 'does not register an offense for superclass call without parens' do
+      expect_no_offenses(<<~RUBY)
         def foo
           super a
-          ^^^^^^^ Use parentheses for method calls with arguments.
-        end
-      RUBY
-
-      expect_correction(<<~RUBY)
-        def foo
-          super(a)
         end
       RUBY
     end
 
-    it 'register no offense for superclass call without args' do
+    it 'registers no offense for superclass call without args' do
       expect_no_offenses('super')
     end
 
-    it 'register no offense for yield without args' do
+    it 'registers no offense for yield without args' do
       expect_no_offenses('yield')
     end
 
-    it 'register no offense for superclass call with parens' do
+    it 'registers no offense for superclass call with parens' do
       expect_no_offenses('super(a)')
     end
 
-    it 'register an offense for yield without parens' do
+    it 'registers an offense for yield without parens' do
       expect_offense(<<~RUBY)
         def foo
           yield a
@@ -475,6 +468,46 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
             end
         RUBY
       end
+
+      it 'registers an offense in case_match multi-line branches' do
+        expect_offense(<<~RUBY)
+          case match
+          in :pattern1
+            foo(value:)
+               ^^^^^^^^ Omit parentheses for method calls with arguments.
+          in :pattern2
+            bar(value:)
+               ^^^^^^^^ Omit parentheses for method calls with arguments.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          case match
+          in :pattern1
+            foo value:
+          in :pattern2
+            bar value:
+          end
+        RUBY
+      end
+
+      it 'does not register an offense in case_match single-line branches' do
+        expect_no_offenses(<<~RUBY)
+          case match
+          in :pattern1 then foo(value:)
+          in :pattern2 then bar(value:)
+          end
+        RUBY
+      end
+
+      it 'does not register an offense in case single-line branches' do
+        expect_no_offenses(<<~RUBY)
+          case match
+          when /pattern1/ then foo(value:)
+          when /pattern2/ then bar(value:)
+          end
+        RUBY
+      end
     end
 
     context 'anonymous rest arguments in 3.2', :ruby32 do
@@ -498,7 +531,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       end
     end
 
-    it 'register an offense for parens in method call without args' do
+    it 'registers an offense for parens in method call without args' do
       trailing_whitespace = ' '
 
       expect_offense(<<~RUBY)
@@ -511,7 +544,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for multi-line method calls' do
+    it 'registers an offense for multi-line method calls' do
       expect_offense(<<~RUBY)
         test(
             ^ Omit parentheses for method calls with arguments.
@@ -526,22 +559,15 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for superclass call with parens' do
-      expect_offense(<<~RUBY)
+    it 'does not register an offense for superclass call with parens' do
+      expect_no_offenses(<<~RUBY)
         def foo
           super(a)
-               ^^^ Omit parentheses for method calls with arguments.
-        end
-      RUBY
-
-      expect_correction(<<~RUBY)
-        def foo
-          super a
         end
       RUBY
     end
 
-    it 'register an offense for yield call with parens' do
+    it 'registers an offense for yield call with parens' do
       expect_offense(<<~RUBY)
         def foo
           yield(a)
@@ -556,7 +582,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for parens in the last chain' do
+    it 'registers an offense for parens in the last chain' do
       expect_offense(<<~RUBY)
         foo().bar(3).wait(4)
                          ^^^ Omit parentheses for method calls with arguments.
@@ -567,7 +593,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for parens in do-end blocks' do
+    it 'registers an offense for parens in do-end blocks' do
       expect_offense(<<~RUBY)
         foo(:arg) do
            ^^^^^^ Omit parentheses for method calls with arguments.
@@ -582,7 +608,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for hashes in keyword values' do
+    it 'registers an offense for hashes in keyword values' do
       expect_offense(<<~RUBY)
         method_call(hash: {foo: :bar})
                    ^^^^^^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
@@ -593,7 +619,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for %r regex literal as arguments' do
+    it 'registers an offense for %r regex literal as arguments' do
       expect_offense(<<~RUBY)
         method_call(%r{foo})
                    ^^^^^^^^^ Omit parentheses for method calls with arguments.
@@ -604,7 +630,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for parens in string interpolation' do
+    it 'registers an offense for parens in string interpolation' do
       expect_offense(<<~'RUBY')
         "#{t('no.parens')}"
             ^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
@@ -615,7 +641,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense in complex conditionals' do
+    it 'registers an offense in complex conditionals' do
       expect_offense(<<~RUBY)
         def foo
           if cond.present? && verify?(:something)
@@ -644,7 +670,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense in assignments' do
+    it 'registers an offense in assignments' do
       expect_offense(<<~RUBY)
         foo = A::B.new(c)
                       ^^^ Omit parentheses for method calls with arguments.
@@ -671,7 +697,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense for camel-case methods with arguments' do
+    it 'registers an offense for camel-case methods with arguments' do
       expect_offense(<<~RUBY)
         Array(:arg)
              ^^^^^^ Omit parentheses for method calls with arguments.
@@ -682,7 +708,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense in multi-line inheritance' do
+    it 'registers an offense in multi-line inheritance' do
       expect_offense(<<~RUBY)
         class Point < Struct.new(:x, :y)
                                 ^^^^^^^^ Omit parentheses for method calls with arguments.
@@ -695,7 +721,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense in calls inside braced blocks' do
+    it 'registers an offense in calls inside braced blocks' do
       expect_offense(<<~RUBY)
         client.images(page: page) { |resource| Image.new(resource) }
                                                         ^^^^^^^^^^ Omit parentheses for method calls with arguments.
@@ -706,7 +732,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'register an offense in calls inside braced numblocks', :ruby27 do
+    it 'registers an offense in calls inside braced numblocks', :ruby27 do
       expect_offense(<<~RUBY)
         client.images(page: page) { Image.new(_1) }
                                              ^^^^ Omit parentheses for method calls with arguments.
@@ -714,6 +740,12 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
 
       expect_correction(<<~RUBY)
         client.images(page: page) { Image.new _1 }
+      RUBY
+    end
+
+    it 'accepts parenthesized method calls before constant resolution' do
+      expect_no_offenses(<<~RUBY)
+        do_something(arg)::CONST
       RUBY
     end
 
@@ -785,7 +817,19 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       expect_no_offenses('foo(1) { 2 }')
     end
 
-    it 'accepts parens in array literal calls' do
+    it 'accepts parens around argument values with blocks' do
+      expect_no_offenses(<<~RUBY)
+        Foo::Bar.find(pending.things.map { |t| t['code'] }.first)
+      RUBY
+    end
+
+    it 'accepts parens around argument values with numblocks', :ruby27 do
+      expect_no_offenses(<<~RUBY)
+        Foo::Bar.find(pending.things.map { _1['code'] })
+      RUBY
+    end
+
+    it 'accepts parens in array literal calls with blocks' do
       expect_no_offenses(<<~RUBY)
         [
           foo.bar.quux(:args) do
@@ -843,16 +887,16 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       expect_no_offenses('yield path, File.basepath(path)')
     end
 
+    it 'accepts parens in super calls with braced blocks' do
+      expect_no_offenses('super(foo(bar)) { yield }')
+    end
+
     it 'accepts parens in super without args' do
       expect_no_offenses('super()')
     end
 
     it 'accepts parens in super method calls as arguments' do
       expect_no_offenses('super foo(bar)')
-    end
-
-    it 'accepts parens in super calls with braced blocks' do
-      expect_no_offenses('super(foo(bar)) { yield }')
     end
 
     it 'accepts parens in camel case method without args' do
@@ -891,6 +935,44 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
+    context 'range literals' do
+      it 'accepts parens when no end node and last argument' do
+        expect_no_offenses(<<~RUBY)
+          foo(2..)
+          foo(1, 2...)
+        RUBY
+      end
+
+      it 'registers an offense no end node and not last argument' do
+        expect_offense(<<~RUBY)
+          foo(2.., 1)
+             ^^^^^^^^ Omit parentheses for method calls with arguments.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo 2.., 1
+        RUBY
+      end
+
+      it 'accepts parens when no begin node and first argument' do
+        expect_no_offenses(<<~RUBY)
+          foo(..2, 1)
+          foo(...2)
+        RUBY
+      end
+
+      it 'registers an offense no begin node and not first argument' do
+        expect_offense(<<~RUBY)
+          foo(1, ..2)
+             ^^^^^^^^ Omit parentheses for method calls with arguments.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo 1, ..2
+        RUBY
+      end
+    end
+
     it 'accepts parens in assignment in conditions' do
       expect_no_offenses(<<-RUBY)
         case response = get("server/list")
@@ -900,6 +982,14 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
           elsif @@image &&= server.take(:image)
             pass
           end
+        end
+      RUBY
+    end
+
+    it 'accepts parens in `when` clause is used to pass an argument' do
+      expect_no_offenses(<<-RUBY)
+        case condition
+          when do_something(arg)
         end
       RUBY
     end
@@ -926,7 +1016,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
 
       expect_correction(<<~RUBY)
-        foo \\#{trailing_whitespace}
+        foo \\
           bar: 3
 
       RUBY
@@ -990,7 +1080,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
         }
       end
 
-      it 'register offense for single-line chaining without previous parens' do
+      it 'registers offense for single-line chaining without previous parens' do
         expect_offense(<<~RUBY)
           Rails.convoluted.example.logger.error("something")
                                                ^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
@@ -1001,7 +1091,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
         RUBY
       end
 
-      it 'register offense for multi-line chaining without previous parens' do
+      it 'registers offense for multi-line chaining without previous parens' do
         expect_offense(<<~RUBY)
           Rails
             .convoluted
@@ -1022,6 +1112,12 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
 
       it 'accepts no parens in the last call if previous calls with parens' do
         expect_no_offenses('foo().bar(3).wait 4')
+      end
+
+      it 'accept parens when previously chained sends have numblocks', :ruby27 do
+        expect_no_offenses(<<~RUBY)
+          [a, b].map { _1.call 'something' }.uniq.join(' - ')
+        RUBY
       end
 
       it 'accepts parens in the last call if any previous calls with parentheses' do
@@ -1047,6 +1143,46 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
         expect_no_offenses(<<~RUBY)
           test(
             foo: bar
+          )
+        RUBY
+      end
+
+      it 'accepts parens in argument calls with blocks' do
+        expect_no_offenses(<<~RUBY)
+          foo(
+            bar.new(quux) do
+              pass
+            end
+          )
+        RUBY
+      end
+
+      it 'accepts parens in argument csend with blocks' do
+        expect_no_offenses(<<~RUBY)
+          foo(
+            bar&.new(quux) do
+              pass
+            end
+          )
+        RUBY
+      end
+
+      it 'accepts parens in super argument call with blocks' do
+        expect_no_offenses(<<~RUBY)
+          super(
+            bar.new(quux) do
+              pass
+            end
+          )
+        RUBY
+      end
+
+      it 'accepts parens in yield argument call with blocks' do
+        expect_no_offenses(<<~RUBY)
+          yield(
+            bar.new(quux) do
+              pass
+            end
           )
         RUBY
       end

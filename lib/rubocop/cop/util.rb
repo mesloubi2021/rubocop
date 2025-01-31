@@ -20,6 +20,10 @@ module RuboCop
 
       # @deprecated Use `ProcessedSource#line_with_comment?`, `contains_comment?` or similar
       def comment_lines?(node)
+        warn Rainbow(<<~WARNING).yellow, uplevel: 1
+          `comment_lines?` is deprecated. Use `ProcessedSource#line_with_comment?`, `contains_comment?` or similar instead.
+        WARNING
+
         processed_source[line_range(node)].any? { |line| comment_line?(line) }
       end
 
@@ -28,7 +32,7 @@ module RuboCop
       end
 
       def parentheses?(node)
-        node.loc.respond_to?(:end) && node.loc.end && node.loc.end.is?(')')
+        node.loc.respond_to?(:end) && node.loc.end&.is?(')')
       end
 
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
@@ -70,9 +74,9 @@ module RuboCop
 
       def args_begin(node)
         loc = node.loc
-        selector = if node.super_type? || node.yield_type?
+        selector = if node.type?(:super, :yield)
                      loc.keyword
-                   elsif node.def_type? || node.defs_type?
+                   elsif node.type?(:def, :defs)
                      loc.name
                    else
                      loc.selector
@@ -173,7 +177,9 @@ module RuboCop
       def same_line?(node1, node2)
         line1 = line(node1)
         line2 = line(node2)
-        line1 && line2 && line1 == line2
+        return false unless line1 && line2
+
+        line1 == line2
       end
 
       def indent(node, offset: 0)
@@ -187,11 +193,18 @@ module RuboCop
           enforced_style.sub(/^Enforced/, 'Supported').sub('Style', 'Styles')
       end
 
+      def parse_regexp(text)
+        Regexp::Parser.parse(text)
+      rescue Regexp::Parser::Error
+        # Upon encountering an invalid regular expression,
+        # we aim to proceed and identify any remaining potential offenses.
+        nil
+      end
+
       private
 
       def compatible_external_encoding_for?(src)
-        src = src.dup if RUBY_ENGINE == 'jruby'
-        src.force_encoding(Encoding.default_external).valid_encoding?
+        src.dup.force_encoding(Encoding.default_external).valid_encoding?
       end
 
       def include_or_equal?(source, target)

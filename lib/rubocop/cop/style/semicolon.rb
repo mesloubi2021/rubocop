@@ -80,6 +80,7 @@ module RuboCop
           processed_source.tokens.group_by(&:line)
         end
 
+        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def semicolon_position(tokens)
           if tokens.last.semicolon?
             -1
@@ -90,10 +91,13 @@ module RuboCop
           elsif exist_semicolon_after_left_curly_brace?(tokens) ||
                 exist_semicolon_after_left_string_interpolation_brace?(tokens)
             2
+          elsif exist_semicolon_after_left_lambda_curly_brace?(tokens)
+            3
           elsif exist_semicolon_before_right_string_interpolation_brace?(tokens)
             -4
           end
         end
+        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def exist_semicolon_before_right_curly_brace?(tokens)
           tokens[-2]&.right_curly_brace? && tokens[-3]&.semicolon?
@@ -101,6 +105,10 @@ module RuboCop
 
         def exist_semicolon_after_left_curly_brace?(tokens)
           tokens[1]&.left_curly_brace? && tokens[2]&.semicolon?
+        end
+
+        def exist_semicolon_after_left_lambda_curly_brace?(tokens)
+          tokens[2]&.type == :tLAMBEG && tokens[3]&.semicolon?
         end
 
         def exist_semicolon_before_right_string_interpolation_brace?(tokens)
@@ -133,7 +141,7 @@ module RuboCop
 
         def expressions_per_line(exprs)
           # create a map matching lines to the number of expressions on them
-          exprs_lines = exprs.map(&:first_line)
+          exprs_lines = exprs.map(&:last_line)
           exprs_lines.group_by(&:itself)
         end
 
@@ -156,7 +164,7 @@ module RuboCop
 
           ast = processed_source.ast
           @range_nodes = ast.range_type? ? [ast] : []
-          @range_nodes.concat(ast.each_descendant(:irange, :erange).to_a)
+          @range_nodes.concat(ast.each_descendant(:range).to_a)
         end
       end
     end

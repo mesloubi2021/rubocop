@@ -14,14 +14,16 @@ module RuboCop
       #
       # When comment enables all cops at once `rubocop:enable all`
       # that cop checks whether any cop was actually enabled.
+      #
       # @example
+      #
       #   # bad
       #   foo = 1
       #   # rubocop:enable Layout/LineLength
       #
       #   # good
       #   foo = 1
-      # @example
+      #
       #   # bad
       #   # rubocop:disable Style/StringLiterals
       #   foo = "1"
@@ -109,7 +111,7 @@ module RuboCop
           range_between(start + begin_pos - 1, start + end_pos)
         end
 
-        # If the list of cops is comma-separated, but without a empty space after the comma,
+        # If the list of cops is comma-separated, but without an empty space after the comma,
         # we should **not** remove the prepending empty space, thus begin_pos += 1
         def range_with_comma_after(comment, start, begin_pos, end_pos)
           begin_pos += 1 if comment.source[end_pos + 1] != ' '

@@ -7,6 +7,9 @@ module RuboCop
       # can be combined into a single loop. It is very likely that combining them
       # will make the code more efficient and more concise.
       #
+      # NOTE: Autocorrection is not applied when the block variable names differ in separate loops,
+      # as it is impossible to determine which variable name should be prioritized.
+      #
       # @safety
       #   The cop is unsafe, because the first loop might modify state that the
       #   second loop depends on; these two aren't combinable.
@@ -59,10 +62,9 @@ module RuboCop
       class CombinableLoops < Base
         extend AutoCorrector
 
-        include RangeHelp
-
         MSG = 'Combine this loop with the previous loop.'
 
+        # rubocop:disable Metrics/CyclomaticComplexity
         def on_block(node)
           return unless node.parent&.begin_type?
           return unless collection_looping_method?(node)
@@ -70,9 +72,12 @@ module RuboCop
           return unless node.body && node.left_sibling.body
 
           add_offense(node) do |corrector|
+            next unless node.arguments == node.left_sibling.arguments
+
             combine_with_left_sibling(corrector, node)
           end
         end
+        # rubocop:enable Metrics/CyclomaticComplexity
 
         alias on_numblock on_block
 
@@ -93,7 +98,7 @@ module RuboCop
         end
 
         def same_collection_looping_block?(node, sibling)
-          return false if sibling.nil? || (!sibling.block_type? && !sibling.numblock_type?)
+          return false if sibling.nil? || !sibling.any_block_type?
 
           sibling.method?(node.method_name) &&
             sibling.receiver == node.receiver &&
@@ -105,11 +110,19 @@ module RuboCop
         end
 
         def combine_with_left_sibling(corrector, node)
-          corrector.replace(
-            node.left_sibling.body,
-            "#{node.left_sibling.body.source}\n#{node.body.source}"
-          )
-          corrector.remove(range_with_surrounding_space(range: node.source_range, side: :left))
+          corrector.remove(node.left_sibling.body.source_range.end.join(node.left_sibling.loc.end))
+          corrector.remove(node.source_range.begin.join(node.body.source_range.begin))
+
+          correct_end_of_block(corrector, node)
+        end
+
+        def correct_end_of_block(corrector, node)
+          return unless node.left_sibling.respond_to?(:braces?)
+          return if node.right_sibling&.any_block_type?
+
+          end_of_block = node.left_sibling.braces? ? '}' : ' end'
+          corrector.remove(node.loc.end)
+          corrector.insert_before(node.source_range.end, end_of_block)
         end
       end
     end

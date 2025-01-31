@@ -50,6 +50,7 @@ module RuboCop
 
         def on_send(node)
           return unless supported_operators.include?(node.method_name.to_s)
+          return unless node.arguments?
 
           lhs = node.receiver
           rhs = node.first_argument
@@ -71,7 +72,7 @@ module RuboCop
         end
 
         def constant_portion?(node)
-          node.numeric_type? || node.const_type?
+          node.type?(:numeric, :const)
         end
 
         def supported_operators

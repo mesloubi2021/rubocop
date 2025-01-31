@@ -106,7 +106,7 @@ module RuboCop
           when :or
             find_target(node.lhs)
           when :match_with_lvasgn
-            lhs, rhs = *node
+            lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
             if lhs.regexp_type?
               rhs
             elsif rhs.regexp_type?
@@ -125,7 +125,7 @@ module RuboCop
           when :==, :eql?, :equal?
             find_target_in_equality_node(node)
           when :===
-            node.arguments.first
+            node.first_argument
           when :include?, :cover?
             find_target_in_include_or_cover_node(node)
           when :match, :match?, :=~
@@ -134,7 +134,7 @@ module RuboCop
         end
 
         def find_target_in_equality_node(node)
-          argument = node.arguments.first
+          argument = node.first_argument
           receiver = node.receiver
           return unless argument && receiver
 
@@ -152,7 +152,7 @@ module RuboCop
         end
 
         def find_target_in_match_node(node)
-          argument = node.arguments.first
+          argument = node.first_argument
           receiver = node.receiver
           return unless receiver
 
@@ -172,7 +172,7 @@ module RuboCop
               return collect_conditions(node.lhs, target, conditions) &&
                      collect_conditions(node.rhs, target, conditions)
             when :match_with_lvasgn
-              lhs, rhs = *node
+              lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
               condition_from_binary_op(lhs, rhs, target)
             when :send
               condition_from_send_node(node, target)
@@ -185,14 +185,13 @@ module RuboCop
         def condition_from_send_node(node, target)
           case node.method_name
           when :is_a?
-            node.arguments.first if node.receiver == target
+            node.first_argument if node.receiver == target
           when :==, :eql?, :equal?
             condition_from_equality_node(node, target)
           when :=~, :match, :match?
             condition_from_match_node(node, target)
           when :===
-            lhs, _method, rhs = *node
-            lhs if rhs == target
+            node.receiver if node.first_argument == target
           when :include?, :cover?
             condition_from_include_or_cover_node(node, target)
           end
@@ -200,14 +199,12 @@ module RuboCop
         # rubocop:enable Metrics/CyclomaticComplexity
 
         def condition_from_equality_node(node, target)
-          lhs, _method, rhs = *node
-          condition = condition_from_binary_op(lhs, rhs, target)
+          condition = condition_from_binary_op(node.receiver, node.first_argument, target)
           condition if condition && !class_reference?(condition)
         end
 
         def condition_from_match_node(node, target)
-          lhs, _method, rhs = *node
-          condition_from_binary_op(lhs, rhs, target)
+          condition_from_binary_op(node.receiver, node.first_argument, target)
         end
 
         def condition_from_include_or_cover_node(node, target)
@@ -230,7 +227,7 @@ module RuboCop
 
         def branch_conditions(node)
           conditions = []
-          while node&.if_type?
+          while node&.if_type? && !node.ternary?
             conditions << node.condition
             node = node.else_branch
           end
@@ -263,11 +260,11 @@ module RuboCop
         def regexp_with_working_captures?(node)
           case node.type
           when :match_with_lvasgn
-            lhs, _rhs = *node
+            lhs, _rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
             node.loc.selector.source == '=~' && regexp_with_named_captures?(lhs)
           when :send
-            lhs, method, rhs = *node
-            method == :match && [lhs, rhs].any? { |n| regexp_with_named_captures?(n) }
+            node.method?(:match) &&
+              [node.receiver, node.first_argument].any? { |n| regexp_with_named_captures?(n) }
           end
         end
 

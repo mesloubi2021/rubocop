@@ -37,25 +37,20 @@ module RuboCop
         private
 
         def valid_context?(node)
-          unless node.arguments.one? && first_argument_starts_with_left_parenthesis?(node)
-            return true
-          end
-          return true if first_argument_block_type?(node.first_argument)
+          return true unless node.arguments.one? && node.first_argument.parenthesized_call?
+          return true if node.first_argument.any_block_type?
 
           node.operator_method? || node.setter_method? || chained_calls?(node) ||
             valid_first_argument?(node.first_argument)
         end
 
-        def first_argument_block_type?(first_arg)
-          first_arg.block_type? || first_arg.numblock_type?
-        end
-
         def valid_first_argument?(first_arg)
-          first_arg.operator_keyword? || first_arg.hash_type? || ternary_expression?(first_arg)
+          first_arg.operator_keyword? || first_arg.hash_type? || ternary_expression?(first_arg) ||
+            compound_range?(first_arg)
         end
 
-        def first_argument_starts_with_left_parenthesis?(node)
-          node.first_argument.source.start_with?('(')
+        def compound_range?(first_arg)
+          first_arg.range_type? && first_arg.parenthesized_call?
         end
 
         def chained_calls?(node)

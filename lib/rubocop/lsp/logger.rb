@@ -10,12 +10,12 @@
 # https://github.com/standardrb/standard/blob/main/LICENSE.txt
 #
 module RuboCop
-  module Lsp
+  module LSP
     # Log for Language Server Protocol of RuboCop.
     # @api private
     class Logger
-      def self.log(message)
-        warn("[server] #{message}")
+      def self.log(message, prefix: '[server]')
+        warn("#{prefix} #{message}")
       end
     end
   end

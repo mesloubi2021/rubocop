@@ -58,9 +58,8 @@ module RuboCop
       #
       # @example EnforcedStyle: use_builtin_english_names
       #
-      # Like `use_perl_names` but allows builtin global vars.
-      #
       #   # good
+      #   # Like `use_perl_names` but allows builtin global vars.
       #   puts $LOAD_PATH
       #   puts $LOADED_FEATURES
       #   puts $PROGRAM_NAME
@@ -150,7 +149,7 @@ module RuboCop
         end
 
         def on_gvar(node)
-          global_var, = *node
+          global_var = node.name
 
           return unless (preferred = preferred_names(global_var))
 

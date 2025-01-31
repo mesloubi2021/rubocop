@@ -62,8 +62,15 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
   subject(:target_finder) { described_class.new(config_store, options) }
 
   let(:config_store) { RuboCop::ConfigStore.new }
-  let(:options) { { force_exclusion: force_exclusion, debug: debug } }
+  let(:options) do
+    {
+      force_exclusion: force_exclusion,
+      ignore_parent_exclusion: ignore_parent_exclusion,
+      debug: debug
+    }
+  end
   let(:force_exclusion) { false }
+  let(:ignore_parent_exclusion) { false }
   let(:debug) { false }
 
   before do
@@ -74,6 +81,8 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
     create_file('dir1/executable', '#!/usr/bin/env ruby')
     create_empty_file('dir2/ruby3.rb')
     create_empty_file('.hidden/ruby4.rb')
+
+    RuboCop::ConfigLoader.clear_options
   end
 
   shared_examples 'common behavior for #find' do
@@ -104,6 +113,16 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
       it 'finds files which match the pattern' do
         expect(found_basenames).to eq(['ruby2.rb'])
+      end
+    end
+
+    context 'when a pattern with matching folders is passed' do
+      before { create_empty_file('app/dir.rb/ruby.rb') }
+
+      let(:args) { ['app/**/*.rb'] }
+
+      it 'finds only files which match the pattern' do
+        expect(found_basenames).to eq(['ruby.rb'])
       end
     end
 
@@ -144,19 +163,37 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       context "when it's forced to adhere file exclusion configuration" do
         let(:force_exclusion) { true }
 
-        it 'excludes them' do
-          expect(found_basenames).to eq(['ruby2.rb'])
+        context 'when parent exclusion is in effect' do
+          before do
+            create_file('dir2/.rubocop.yml', <<~YAML)
+              require:
+                - unloadable_extension
+            YAML
+          end
+
+          it 'excludes only files that are excluded on top level and does not load ' \
+             'other configuration files unnecessarily' do
+            expect(found_basenames).to eq(['ruby2.rb', 'executable'])
+          end
+        end
+
+        context 'when parent exclusion is ignored' do
+          let(:ignore_parent_exclusion) { true }
+
+          it 'excludes files that are excluded on any level' do
+            expect(found_basenames).to eq(['ruby2.rb'])
+          end
         end
       end
     end
 
     it 'returns absolute paths' do
-      expect(found_files.empty?).to be(false)
-      found_files.each { |file| expect(Pathname.new(file).absolute?).to be(true) }
+      expect(found_files).not_to be_empty
+      found_files.each { |file| expect(Pathname.new(file)).to be_absolute }
     end
 
     it 'does not find hidden files' do
-      expect(found_files.include?('.hidden/ruby4.rb')).to be(false)
+      expect(found_files).not_to include('.hidden/ruby4.rb')
     end
 
     context 'when no argument is passed' do
@@ -164,10 +201,10 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
       it 'finds files under the current directory' do
         Dir.chdir('dir1') do
-          expect(found_files.empty?).to be(false)
+          expect(found_files).not_to be_empty
           found_files.each do |file|
-            expect(file.include?('/dir1/')).to be(true)
-            expect(file.include?('/dir2/')).to be(false)
+            expect(file).to include('/dir1/')
+            expect(file).not_to include('/dir2/')
           end
         end
       end
@@ -178,10 +215,10 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
       it 'finds files under the specified directory' do
         Dir.chdir('dir1') do
-          expect(found_files.empty?).to be(false)
+          expect(found_files).not_to be_empty
           found_files.each do |file|
-            expect(file.include?('/dir2/')).to be(true)
-            expect(file.include?('/dir1/')).to be(false)
+            expect(file).to include('/dir2/')
+            expect(file).not_to include('/dir1/')
           end
         end
       end
@@ -192,7 +229,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
       it 'finds files under the specified directory' do
         expect(found_files.size).to be(1)
-        expect(found_files.first.include?('.hidden/ruby4.rb')).to be(true)
+        expect(found_files.first).to include('.hidden/ruby4.rb')
       end
     end
 
@@ -242,7 +279,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
       it 'finds files under the specified directory' do
         expect(found_files.size).to be(1)
-        expect(found_files.first.include?('.hidden/ruby4.rb')).to be(true)
+        expect(found_files.first).to include('.hidden/ruby4.rb')
       end
     end
 
@@ -250,7 +287,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       let(:args) { ['dir2/file'] }
 
       it "doesn't pick the file" do
-        expect(found_basenames.empty?).to be(true)
+        expect(found_basenames).to be_empty
       end
     end
 
@@ -405,8 +442,8 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby1.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby1.rb')
+      expect(found_basenames).to include('ruby3.rb')
     end
 
     it 'works also if a folder is named ","' do
@@ -417,9 +454,9 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby1.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
-      expect(found_basenames.include?('ruby4.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby1.rb')
+      expect(found_basenames).to include('ruby3.rb')
+      expect(found_basenames).to include('ruby4.rb')
     end
 
     it 'works also if a folder is named "{}"' do
@@ -430,9 +467,9 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby1.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
-      expect(found_basenames.include?('ruby4.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby1.rb')
+      expect(found_basenames).to include('ruby3.rb')
+      expect(found_basenames).to include('ruby4.rb')
     end
 
     it 'works also if a folder is named "{foo}"' do
@@ -443,9 +480,9 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby1.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
-      expect(found_basenames.include?('ruby4.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby1.rb')
+      expect(found_basenames).to include('ruby3.rb')
+      expect(found_basenames).to include('ruby4.rb')
     end
 
     it 'works also if a folder is named "[...something]"' do
@@ -456,9 +493,9 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby1.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
-      expect(found_basenames.include?('ruby4.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby1.rb')
+      expect(found_basenames).to include('ruby3.rb')
+      expect(found_basenames).to include('ruby4.rb')
     end
 
     it 'works if patterns are empty' do
@@ -487,7 +524,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
         allow(config).to receive(:for_all_cops).and_return(exclude_property)
         allow(config_store).to receive(:for).and_return(config)
 
-        expect(found_basenames.include?('ruby5.rb')).to be(true)
+        expect(found_basenames).to include('ruby5.rb')
       end
     end
 
@@ -505,8 +542,8 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby1.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby1.rb')
+      expect(found_basenames).to include('ruby3.rb')
     end
 
     it 'can exclude symlinks as well as directories' do
@@ -518,8 +555,8 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       allow(config).to receive(:for_all_cops).and_return(exclude_property)
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby5.rb')).to be(false)
-      expect(found_basenames.include?('ruby3.rb')).to be(true)
+      expect(found_basenames).not_to include('ruby5.rb')
+      expect(found_basenames).to include('ruby3.rb')
     end
   end
 
@@ -534,17 +571,17 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
     end
 
     it 'picks ruby executable files with no extension' do
-      expect(found_basenames.include?('executable')).to be(true)
+      expect(found_basenames).to include('executable')
     end
 
     it 'does not pick files with no extension and no ruby shebang' do
-      expect(found_basenames.include?('file')).to be(false)
+      expect(found_basenames).not_to include('file')
     end
 
     it 'does not pick directories' do
       found_basenames = found_files.map { |f| File.basename(f) }
       allow(config_store).to receive(:for).and_return({})
-      expect(found_basenames.include?('dir1')).to be(false)
+      expect(found_basenames).not_to include('dir1')
     end
 
     it 'picks files specified to be included in config' do
@@ -560,7 +597,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('file')).to be(true)
+      expect(found_basenames).to include('file')
     end
 
     it 'does not pick files specified to be excluded in config' do
@@ -575,19 +612,11 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
       end
       allow(config_store).to receive(:for).and_return(config)
 
-      expect(found_basenames.include?('ruby2.rb')).to be(false)
+      expect(found_basenames).not_to include('ruby2.rb')
     end
 
     context 'when an exception is raised while reading file' do
-      around do |example|
-        original_stderr = $stderr
-        $stderr = StringIO.new
-        begin
-          example.run
-        ensure
-          $stderr = original_stderr
-        end
-      end
+      include_context 'mock console output'
 
       before { allow_any_instance_of(File).to receive(:readline).and_raise(EOFError) }
 
@@ -596,7 +625,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
         it 'outputs error message' do
           found_files
-          expect($stderr.string.include?('Unprocessable file')).to be(true)
+          expect($stderr.string).to include('Unprocessable file')
         end
       end
 
@@ -605,7 +634,7 @@ RSpec.describe RuboCop::TargetFinder, :isolated_environment do
 
         it 'outputs nothing' do
           found_files
-          expect($stderr.string.empty?).to be(true)
+          expect($stderr.string).to be_empty
         end
       end
     end

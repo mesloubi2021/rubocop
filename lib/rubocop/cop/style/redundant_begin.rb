@@ -68,6 +68,10 @@ module RuboCop
 
         MSG = 'Redundant `begin` block detected.'
 
+        def self.autocorrect_incompatible_with
+          [Style::BlockDelimiters]
+        end
+
         # @!method offensive_kwbegins(node)
         def_node_search :offensive_kwbegins, <<~PATTERN
           [(kwbegin ...) !#allowable_kwbegin?]
@@ -75,7 +79,7 @@ module RuboCop
 
         def on_def(node)
           return unless node.body&.kwbegin_type?
-          return if node.endless? && !node.body.children.one?
+          return if node.endless?
 
           register_offense(node.body)
         end
@@ -181,7 +185,7 @@ module RuboCop
         def contain_rescue_or_ensure?(node)
           first_child = node.children.first
 
-          first_child.rescue_type? || first_child.ensure_type?
+          first_child.type?(:rescue, :ensure)
         end
 
         def valid_context_using_only_begin?(node)

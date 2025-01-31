@@ -36,6 +36,7 @@ module RuboCop
         ACCEPT_LEFT_PAREN = %w[break defined? next not rescue return super yield].freeze
         ACCEPT_LEFT_SQUARE_BRACKET = %w[super yield].freeze
         ACCEPT_NAMESPACE_OPERATOR = 'super'
+        RESTRICT_ON_SEND = %i[!].freeze
 
         def on_and(node)
           check(node, [:operator].freeze) if node.keyword?
@@ -256,7 +257,7 @@ module RuboCop
           # regular dotted method calls bind more tightly than operators
           # so we need to climb up the AST past them
           node.each_ancestor do |ancestor|
-            return true if ancestor.and_type? || ancestor.or_type? || ancestor.range_type?
+            return true if ancestor.operator_keyword? || ancestor.range_type?
             return false unless ancestor.send_type?
             return true if ancestor.operator_method?
           end

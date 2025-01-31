@@ -3,22 +3,18 @@
 module RuboCop
   module Cop
     module Lint
-      # Checks for `rescue` blocks targeting the Exception class.
+      # Checks for `rescue` blocks targeting the `Exception` class.
       #
       # @example
       #
       #   # bad
-      #
       #   begin
       #     do_something
       #   rescue Exception
       #     handle_exception
       #   end
       #
-      # @example
-      #
       #   # good
-      #
       #   begin
       #     do_something
       #   rescue ArgumentError

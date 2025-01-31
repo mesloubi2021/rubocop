@@ -9,7 +9,6 @@ module RuboCop
       # @example
       #
       #   # bad
-      #
       #   def foo
       #     1
       #   end
@@ -18,20 +17,14 @@ module RuboCop
       #     2
       #   end
       #
-      # @example
-      #
       #   # bad
-      #
       #   def foo
       #     1
       #   end
       #
       #   alias foo bar
       #
-      # @example
-      #
       #   # good
-      #
       #   def foo
       #     1
       #   end
@@ -40,10 +33,7 @@ module RuboCop
       #     2
       #   end
       #
-      # @example
-      #
       #   # good
-      #
       #   def foo
       #     1
       #   end
@@ -253,7 +243,7 @@ module RuboCop
           # Assume that if a method definition is inside any block call which
           # we can't identify, it could be a DSL
           node.each_ancestor(:block).any? do |ancestor|
-            ancestor.method_name != :class_eval && !ancestor.class_constructor?
+            !ancestor.method?(:class_eval) && !ancestor.class_constructor?
           end
         end
 

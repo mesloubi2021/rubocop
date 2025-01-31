@@ -208,6 +208,8 @@ RSpec.describe RuboCop::Cop::Style::ParallelAssignment, :config do
   it_behaves_like('allowed', 'a, = *foo')
   it_behaves_like('allowed', 'a, *b = [1, 2, 3]')
   it_behaves_like('allowed', '*a, b = [1, 2, 3]')
+  it_behaves_like('allowed', '*, b = [1, 2, 3]')
+  it_behaves_like('allowed', 'a, *, b = [1, 2, 3]')
   it_behaves_like('allowed', 'a, b = b, a')
   it_behaves_like('allowed', 'a, b, c = b, c, a')
   it_behaves_like('allowed', 'a, b = (a + b), (a - b)')
@@ -694,6 +696,18 @@ RSpec.describe RuboCop::Cop::Style::ParallelAssignment, :config do
       c = b + 1
       b = a + 1
       a = 1
+    RUBY
+  end
+
+  it 'corrects when assignments include __FILE__' do
+    expect_offense(<<~RUBY)
+      a, b = c, __FILE__
+      ^^^^^^^^^^^^^^^^^^ Do not use parallel assignment.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      a = c
+      b = __FILE__
     RUBY
   end
 

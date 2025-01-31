@@ -14,11 +14,14 @@ module RuboCop
       # and ||/or is shorthand for a sequence of ifs, so they also add one.
       # Loops can be said to have an exit condition, so they add one.
       # Blocks that are calls to builtin iteration methods
-      # (e.g. `ary.map{...}) also add one, others are ignored.
+      # (e.g. `ary.map{...}`) also add one, others are ignored.
+      #
+      # @example
       #
       #   def each_child_node(*types)               # count begins: 1
       #     unless block_given?                     # unless: +1
       #       return to_enum(__method__, *types)
+      #     end
       #
       #     children.each do |child|                # each{}: +1
       #       next unless child.is_a?(Node)         # unless: +1
@@ -33,7 +36,7 @@ module RuboCop
         include MethodComplexity
         include Utils::IteratingBlock
 
-        MSG = 'Cyclomatic complexity for %<method>s is too high. [%<complexity>d/%<max>d]'
+        MSG = 'Cyclomatic complexity for `%<method>s` is too high. [%<complexity>d/%<max>d]'
         COUNTED_NODES = %i[if while until for csend block block_pass
                            rescue when in_pattern and or or_asgn and_asgn].freeze
 

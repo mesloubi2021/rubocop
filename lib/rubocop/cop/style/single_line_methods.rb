@@ -68,7 +68,7 @@ module RuboCop
           return false if body_node.parent.assignment_method? ||
                           NOT_SUPPORTED_ENDLESS_METHOD_BODY_TYPES.include?(body_node.type)
 
-          !(body_node.begin_type? || body_node.kwbegin_type?)
+          !body_node.type?(:begin, :kwbegin)
         end
 
         def correct_to_multiline(corrector, node)
@@ -134,10 +134,9 @@ module RuboCop
         end
 
         def disallow_endless_method_style?
-          endless_method_config = config.for_cop('Style/EndlessMethod')
-          return true unless endless_method_config['Enabled']
+          return true unless config.cop_enabled?('Style/EndlessMethod')
 
-          endless_method_config['EnforcedStyle'] == 'disallow'
+          config.for_cop('Style/EndlessMethod')['EnforcedStyle'] == 'disallow'
         end
       end
     end

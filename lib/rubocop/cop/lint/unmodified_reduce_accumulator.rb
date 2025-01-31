@@ -69,8 +69,8 @@ module RuboCop
         # @!method reduce_with_block?(node)
         def_node_matcher :reduce_with_block?, <<~PATTERN
           {
-            (block (send _recv {:reduce :inject} ...) args ...)
-            (numblock (send _recv {:reduce :inject} ...) ...)
+            (block (call _recv {:reduce :inject} ...) args ...)
+            (numblock (call _recv {:reduce :inject} ...) ...)
           }
         PATTERN
 
@@ -113,6 +113,7 @@ module RuboCop
         PATTERN
 
         def on_block(node)
+          return unless node.body
           return unless reduce_with_block?(node)
           return unless node.argument_list.length >= 2
 
@@ -129,7 +130,7 @@ module RuboCop
 
           block_body_node.each_descendant(:next, :break) do |n|
             # Ignore `next`/`break` inside an inner block
-            next if n.each_ancestor(:block).first != block_body_node.parent
+            next if n.each_ancestor(:any_block).first != block_body_node.parent
             next unless n.first_argument
 
             nodes << n.first_argument

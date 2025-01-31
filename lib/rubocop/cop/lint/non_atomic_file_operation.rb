@@ -59,12 +59,12 @@ module RuboCop
 
         # @!method send_exist_node(node)
         def_node_search :send_exist_node, <<~PATTERN
-          $(send (const nil? {:FileTest :File :Dir :Shell}) {:exist? :exists?} ...)
+          $(send (const {cbase nil?} {:FileTest :File :Dir :Shell}) {:exist? :exists?} ...)
         PATTERN
 
         # @!method receiver_and_method_name(node)
         def_node_matcher :receiver_and_method_name, <<~PATTERN
-          (send (const nil? $_) $_ ...)
+          (send (const {cbase nil?} $_) $_ ...)
         PATTERN
 
         # @!method force?(node)
@@ -78,6 +78,7 @@ module RuboCop
         PATTERN
 
         def on_send(node)
+          return unless node.receiver&.const_type?
           return unless if_node_child?(node)
           return if explicit_not_force?(node)
           return unless (exist_node = send_exist_node(node.parent).first)
@@ -95,7 +96,7 @@ module RuboCop
         end
 
         def allowable_use_with_if?(if_node)
-          if_node.condition.and_type? || if_node.condition.or_type? || if_node.else_branch
+          if_node.condition.operator_keyword? || if_node.else_branch
         end
 
         def register_offense(node, exist_node)
@@ -115,6 +116,7 @@ module RuboCop
 
         def message_remove_file_exist_check(node)
           receiver, method_name = receiver_and_method_name(node)
+
           format(MSG_REMOVE_FILE_EXIST_CHECK, receiver: receiver, method_name: method_name)
         end
 
@@ -134,6 +136,7 @@ module RuboCop
 
           corrector.replace(node.child_nodes.first.loc.name, 'FileUtils')
           corrector.replace(node.loc.selector, replacement_method(node))
+          corrector.insert_before(node.last_argument, 'mode: ') if require_mode_keyword?(node)
         end
 
         def replacement_method(node)
@@ -150,6 +153,12 @@ module RuboCop
 
         def force_method?(node)
           force_method_name?(node) || force_option?(node)
+        end
+
+        def require_mode_keyword?(node)
+          return false unless node.receiver.const_name == 'Dir'
+
+          replacement_method(node) == 'mkdir_p' && node.arguments.length == 2
         end
 
         def force_option?(node)

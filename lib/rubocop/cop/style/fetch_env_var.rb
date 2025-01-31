@@ -6,7 +6,7 @@ module RuboCop
       # Suggests `ENV.fetch` for the replacement of `ENV[]`.
       # `ENV[]` silently fails and returns `nil` when the environment variable is unset,
       # which may cause unexpected behaviors when the developer forgets to set it.
-      # On the other hand, `ENV.fetch` raises KeyError or returns the explicitly
+      # On the other hand, `ENV.fetch` raises `KeyError` or returns the explicitly
       # specified default value.
       #
       # @example
@@ -26,6 +26,7 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Use `ENV.fetch(%<key>s)` or `ENV.fetch(%<key>s, nil)` instead of `ENV[%<key>s]`.'
+        RESTRICT_ON_SEND = [:[]].freeze
 
         # @!method env_with_bracket?(node)
         def_node_matcher :env_with_bracket?, <<~PATTERN

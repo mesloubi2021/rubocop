@@ -82,7 +82,7 @@ RSpec.describe RuboCop::Cop::Style::MapToSet, :config do
       end
     end
 
-    context 'when the receiver is an hash' do
+    context 'when the receiver is a hash' do
       it 'registers an offense and corrects' do
         expect_offense(<<~RUBY, method: method)
           { foo: :bar }.#{method} { |x, y| [x.to_s, y.to_s] }.to_set
@@ -110,7 +110,7 @@ RSpec.describe RuboCop::Cop::Style::MapToSet, :config do
 
     context "`#{method}` without `to_set`" do
       it 'does not register an offense' do
-        expect_no_offenses(<<~RUBY, method: method)
+        expect_no_offenses(<<~RUBY)
           foo.#{method} { |x| x * 2 }
         RUBY
       end
@@ -141,6 +141,41 @@ RSpec.describe RuboCop::Cop::Style::MapToSet, :config do
           {foo: bar}
             .to_set { |k, v| [k.to_s, v.do_something] }
             .freeze
+        RUBY
+      end
+    end
+
+    context 'with safe navigation' do
+      it "registers an offense and corrects for `foo&.#{method}.to_set" do
+        expect_offense(<<~RUBY, method: method)
+          foo&.#{method} { |x| [x, x * 2] }.to_set
+               ^{method} Pass a block to `to_set` instead of calling `#{method}.to_set`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo&.to_set { |x| [x, x * 2] }
+        RUBY
+      end
+
+      it "registers an offense and corrects for `foo.#{method}&.to_set" do
+        expect_offense(<<~RUBY, method: method)
+          foo.#{method} { |x| [x, x * 2] }&.to_set
+              ^{method} Pass a block to `to_set` instead of calling `#{method}.to_set`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo.to_set { |x| [x, x * 2] }
+        RUBY
+      end
+
+      it "registers an offense and corrects for `foo&.#{method}&.to_set" do
+        expect_offense(<<~RUBY, method: method)
+          foo&.#{method} { |x| [x, x * 2] }&.to_set
+               ^{method} Pass a block to `to_set` instead of calling `#{method}.to_set`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo&.to_set { |x| [x, x * 2] }
         RUBY
       end
     end

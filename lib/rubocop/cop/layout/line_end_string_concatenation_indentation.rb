@@ -102,7 +102,7 @@ module RuboCop
 
         def strings_concatenated_with_backslash?(dstr_node)
           dstr_node.multiline? &&
-            dstr_node.children.all? { |c| c.str_type? || c.dstr_type? } &&
+            dstr_node.children.all? { |c| c.type?(:str, :dstr) } &&
             dstr_node.children.none?(&:multiline?)
         end
 
@@ -127,7 +127,7 @@ module RuboCop
 
         def base_column(child)
           grandparent = child.parent.parent
-          if grandparent&.type == :pair
+          if grandparent&.pair_type?
             grandparent.loc.column
           else
             child.source_range.source_line =~ /\S/
