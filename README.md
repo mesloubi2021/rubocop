@@ -171,40 +171,6 @@ and [Tidelift](https://tidelift.com/subscription/pkg/rubygems-rubocop?utm_source
 **Note:** If doing a sponsorship in the form of donation is problematic for your company from an accounting standpoint, we'd recommend
 the use of Tidelift, where you can get a support-like subscription instead.
 
-### Open Collective for Individuals
-
-Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/rubocop#backer)]
-
-<a href="https://opencollective.com/rubocop/individual/0/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/0/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/1/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/1/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/2/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/2/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/3/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/3/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/4/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/4/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/5/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/5/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/6/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/6/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/7/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/7/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/8/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/8/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/9/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/9/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/10/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/10/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/11/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/11/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/12/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/12/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/13/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/13/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/14/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/14/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/15/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/15/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/16/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/16/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/17/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/17/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/18/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/18/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/19/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/19/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/20/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/20/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/21/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/21/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/22/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/22/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/23/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/23/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/24/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/24/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/25/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/25/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/26/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/26/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/27/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/27/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/28/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/28/avatar.svg"></a>
-<a href="https://opencollective.com/rubocop/individual/29/website" target="_blank"><img src="https://opencollective.com/rubocop/individual/29/avatar.svg"></a>
 
 ### Open Collective for Organizations
 
@@ -245,7 +211,3 @@ Become a sponsor and get your logo on our README on GitHub with a link to your s
 
 RuboCop's changelog is available [here](CHANGELOG.md).
 
-## Copyright
-
-Copyright (c) 2012-2025 Bozhidar Batsov. See [LICENSE.txt](LICENSE.txt) for
-further details.
