@@ -94,24 +94,11 @@ If you use RuboCop in your project, you can include one of these badges in your 
 
 Here are the Markdown snippets for the two badges:
 
+``` markdown
+[![Ruby Style Guide](https://img.shields.io/badge/code_style-rubocop-brightgreen.svg)](https://github.com/rubocop/rubocop)
 
-## Team
-
-Here's a list of RuboCop's core developers:
-
-* [Bozhidar Batsov](https://github.com/bbatsov) (author & head maintainer)
-* [Jonas Arvidsson](https://github.com/jonas054)
-* [Yuji Nakayama](https://github.com/yujinakayama) (retired)
-* [Evgeni Dzhelyov](https://github.com/edzhelyov) (retired)
-* [Ted Johansson](https://github.com/drenmi)
-* [Masataka Kuwabara](https://github.com/pocke)
-* [Koichi Ito](https://github.com/koic)
-* [Maxim Krizhanovski](https://github.com/darhazer)
-* [Benjamin Quorning](https://github.com/bquorning)
-* [Marc-André Lafortune](https://github.com/marcandre)
-* [Daniel Vandersluis](https://github.com/dvandersluis)
-
-See the [team page](https://docs.rubocop.org/rubocop/about/team.html) for more details.
+[![Ruby Style Guide](https://img.shields.io/badge/code_style-community-brightgreen.svg)](https://rubystyle.guide)
+```
 
 ## Logo
 
