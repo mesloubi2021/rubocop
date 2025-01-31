@@ -94,11 +94,6 @@ If you use RuboCop in your project, you can include one of these badges in your 
 
 Here are the Markdown snippets for the two badges:
 
-``` markdown
-[![Ruby Style Guide](https://img.shields.io/badge/code_style-rubocop-brightgreen.svg)](https://github.com/rubocop/rubocop)
-
-[![Ruby Style Guide](https://img.shields.io/badge/code_style-community-brightgreen.svg)](https://rubystyle.guide)
-```
 
 ## Team
 
